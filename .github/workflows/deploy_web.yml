@@ -15,16 +15,15 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build_and_deploy:
-    name: Build Flutter Web & Deploy
+  build:
+    name: Build Flutter Web
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -47,6 +46,14 @@ jobs:
         with:
           path: build/web
 
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
