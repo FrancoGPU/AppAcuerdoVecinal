@@ -19,6 +19,14 @@ class SupabaseRuntimeConfig {
   final String url;
   final String anonKey;
 
+  /// Normalizes the Supabase URL to its origin, stripping `/rest/v1` or trailing slashes.
+  String get normalizedUrl {
+    final trimmed = url.trim();
+    final uri = Uri.tryParse(trimmed);
+    if (uri == null || !uri.hasScheme || uri.host.isEmpty) return trimmed;
+    return uri.origin;
+  }
+
   bool get isConfigured {
     final trimmedUrl = url.trim();
     final trimmedKey = anonKey.trim();
@@ -31,7 +39,7 @@ class SupabaseRuntimeConfig {
   }
 
   Map<String, dynamic> toJson() => {
-        'url': url.trim(),
+        'url': normalizedUrl,
         'anonKey': anonKey.trim(),
       };
 

@@ -50,7 +50,7 @@ class SupabaseService {
     if (config == null || !config.isConfigured) return;
 
     _client = SupabaseClient(
-      config.url.trim(),
+      config.normalizedUrl,
       config.anonKey.trim(),
       authOptions: const AuthClientOptions(
         authFlowType: AuthFlowType.implicit,

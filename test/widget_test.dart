@@ -797,13 +797,14 @@ void main() {
 
     test('SupabaseService inicializa cliente con flujo implícito sin PKCE nulo',
         () async {
-      final service = SupabaseService();
-      await service.inicializar(
-        const SupabaseRuntimeConfig(
-          url: 'https://demo-project.supabase.co',
-          anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.dummy-anon-key',
-        ),
+      const cfg = SupabaseRuntimeConfig(
+        url: 'https://demo-project.supabase.co/rest/v1/',
+        anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.dummy-anon-key',
       );
+      expect(cfg.normalizedUrl, 'https://demo-project.supabase.co');
+
+      final service = SupabaseService();
+      await service.inicializar(cfg);
       expect(service.estaListo, isTrue);
       expect(service.configActual?.isConfigured, isTrue);
       await service.inicializar(null);
