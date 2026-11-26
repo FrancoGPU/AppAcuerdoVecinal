@@ -1,8 +1,12 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:provider/provider.dart';
 
 import '../core/constants/reglamento_data.dart';
 import '../core/theme/app_theme.dart';
 import '../models/condicion_model.dart';
+import '../providers/negociacion_provider.dart';
+import '../providers/reglamento_provider.dart';
+import '../services/mediador_ia_service.dart';
 import 'selector_campo_modal.dart';
 
 /// Data returned by the counter-offer bottom sheet modal.
@@ -25,6 +29,9 @@ Future<ContrapropuestaResult?> mostrarModalContrapropuesta(
   BuildContext context, {
   required CondicionModel condicion,
   required bool solicitarInteresReceptor,
+  String categoria = 'Otros',
+  String interesPropio = '',
+  String interesContraparte = '',
 }) {
   return showModalBottomSheet<ContrapropuestaResult>(
     context: context,
@@ -36,6 +43,9 @@ Future<ContrapropuestaResult?> mostrarModalContrapropuesta(
     builder: (_) => _ModalContrapropuesta(
       condicion: condicion,
       solicitarInteresReceptor: solicitarInteresReceptor,
+      categoria: categoria,
+      interesPropio: interesPropio,
+      interesContraparte: interesContraparte,
     ),
   );
 }
@@ -44,10 +54,16 @@ class _ModalContrapropuesta extends StatefulWidget {
   const _ModalContrapropuesta({
     required this.condicion,
     required this.solicitarInteresReceptor,
+    required this.categoria,
+    required this.interesPropio,
+    required this.interesContraparte,
   });
 
   final CondicionModel condicion;
   final bool solicitarInteresReceptor;
+  final String categoria;
+  final String interesPropio;
+  final String interesContraparte;
 
   @override
   State<_ModalContrapropuesta> createState() => _ModalContrapropuestaState();
@@ -59,6 +75,13 @@ class _ModalContrapropuestaState extends State<_ModalContrapropuesta> {
   late final TextEditingController _argumentoCtrl;
   late final TextEditingController _interesCtrl;
   late String _criterioSeleccionado;
+  bool _mejorandoIa = false;
+
+  List<ArticuloReglamento> _articulosDisponibles(BuildContext context) {
+    final provider = Provider.of<ReglamentoProvider?>(context, listen: false);
+    final lista = provider?.articulos;
+    return (lista != null && lista.isNotEmpty) ? lista : kReglamentoInterno;
+  }
 
   @override
   void initState() {
@@ -69,12 +92,13 @@ class _ModalContrapropuestaState extends State<_ModalContrapropuesta> {
     _argumentoCtrl = TextEditingController();
     _interesCtrl = TextEditingController();
 
-    final existe = kReglamentoInterno.any(
+    final articulos = _articulosDisponibles(context);
+    final existe = articulos.any(
       (a) => a.etiqueta == widget.condicion.criterioObjetivo,
     );
     _criterioSeleccionado = existe
         ? widget.condicion.criterioObjetivo
-        : kReglamentoInterno.first.etiqueta;
+        : articulos.first.etiqueta;
   }
 
   @override
@@ -83,6 +107,57 @@ class _ModalContrapropuestaState extends State<_ModalContrapropuesta> {
     _argumentoCtrl.dispose();
     _interesCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _mejorarArgumentoConIa() async {
+    if (_mejorandoIa) return;
+    setState(() => _mejorandoIa = true);
+
+    try {
+      final articulos = _articulosDisponibles(context);
+      final negProvider = Provider.of<NegociacionProvider?>(
+        context,
+        listen: false,
+      );
+      final servicioIa = negProvider?.mediadorIa ?? const MediadorIaService();
+
+      final sugerencia = await servicioIa.mejorarArgumentoHarvard(
+        categoria: widget.categoria,
+        propuesta: _propuestaCtrl.text,
+        borradorArgumento: _argumentoCtrl.text,
+        reglamento: articulos,
+        interesPropio: _interesCtrl.text.trim().isNotEmpty
+            ? _interesCtrl.text
+            : widget.interesPropio,
+        interesContraparte: widget.interesContraparte,
+        intentarNube: negProvider?.esModoNube ?? false,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _argumentoCtrl.text = sugerencia.argumentoMejorado;
+        if (articulos.any((a) => a.etiqueta == sugerencia.criterioSugerido)) {
+          _criterioSeleccionado = sugerencia.criterioSugerido;
+        }
+      });
+
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              sugerencia.esGeminiNube
+                  ? 'Argumento optimizado con Gemini Flash'
+                  : 'Argumento optimizado con Enfoque Harvard',
+            ),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+    } finally {
+      if (mounted) {
+        setState(() => _mejorandoIa = false);
+      }
+    }
   }
 
   void _enviar() {
@@ -103,6 +178,7 @@ class _ModalContrapropuestaState extends State<_ModalContrapropuesta> {
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final articulos = _articulosDisponibles(context);
 
     return SafeArea(
       child: Padding(
@@ -173,7 +249,7 @@ class _ModalContrapropuestaState extends State<_ModalContrapropuesta> {
                 SelectorCampoModal(
                   labelText: 'Criterio Objetivo',
                   valorSeleccionado: _criterioSeleccionado,
-                  opciones: kReglamentoInterno
+                  opciones: articulos
                       .map(
                         (art) => OpcionSelector(
                           valor: art.etiqueta,
@@ -186,7 +262,34 @@ class _ModalContrapropuestaState extends State<_ModalContrapropuesta> {
                     setState(() => _criterioSeleccionado = value);
                   },
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.aiPrimary,
+                      backgroundColor: AppColors.aiBg,
+                      minimumSize: const Size(0, 34),
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                    ),
+                    onPressed: _mejorandoIa ? null : _mejorarArgumentoConIa,
+                    icon: _mejorandoIa
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.auto_awesome_rounded, size: 15),
+                    label: Text(
+                      _mejorandoIa ? 'Redactando...' : 'Mejorar con IA',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
                 TextFormField(
                   controller: _argumentoCtrl,
                   maxLines: 3,

@@ -3,7 +3,10 @@ import 'package:provider/provider.dart';
 
 import '../core/constants/reglamento_data.dart';
 import '../core/theme/app_theme.dart';
+import '../models/usuario_model.dart';
+import '../providers/auth_provider.dart';
 import '../providers/negociacion_provider.dart';
+import '../providers/reglamento_provider.dart';
 import '../widgets/selector_campo_modal.dart';
 import 'mesa_negociacion_screen.dart';
 
@@ -27,8 +30,24 @@ class _CrearNegociacionScreenState extends State<CrearNegociacionScreen> {
 
   String _categoria = kCategoriasConflicto.first;
   String _criterioObjetivo = kReglamentoInterno.first.etiqueta;
+  String? _dptoReceptorSeleccionado;
+  String? _receptorIdSeleccionado;
   bool _esAnonimo = false;
   bool _enviando = false;
+  bool _mejorandoIa = false;
+
+  List<ArticuloReglamento> _articulosDisponibles(BuildContext context) {
+    final reg = Provider.of<ReglamentoProvider?>(context, listen: false);
+    final lista = reg?.articulos;
+    return (lista != null && lista.isNotEmpty) ? lista : kReglamentoInterno;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    final articulos = _articulosDisponibles(context);
+    _criterioObjetivo = articulos.first.etiqueta;
+  }
 
   @override
   void dispose() {
@@ -41,14 +60,60 @@ class _CrearNegociacionScreenState extends State<CrearNegociacionScreen> {
     super.dispose();
   }
 
-  void _sincronizarCriterioPorCategoria(String categoria) {
-    final coincidencia = kReglamentoInterno.where(
+  void _sincronizarCriterioPorCategoria(
+    String categoria,
+    List<ArticuloReglamento> articulos,
+  ) {
+    final coincidencia = articulos.where(
       (a) => a.categoria == categoria,
     );
     if (coincidencia.isNotEmpty) {
       _criterioObjetivo = coincidencia.first.etiqueta;
     } else {
-      _criterioObjetivo = kReglamentoInterno.last.etiqueta;
+      _criterioObjetivo = articulos.last.etiqueta;
+    }
+  }
+
+  Future<void> _mejorarArgumentoConIa() async {
+    if (_mejorandoIa) return;
+    setState(() => _mejorandoIa = true);
+
+    try {
+      final articulos = _articulosDisponibles(context);
+      final provider = context.read<NegociacionProvider>();
+      final sugerencia = await provider.mediadorIa.mejorarArgumentoHarvard(
+        categoria: _categoria,
+        propuesta: _propuestaCtrl.text,
+        borradorArgumento: _argumentoCtrl.text,
+        reglamento: articulos,
+        interesPropio: _interesCtrl.text,
+        intentarNube: provider.esModoNube,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _argumentoCtrl.text = sugerencia.argumentoMejorado;
+        if (articulos.any((a) => a.etiqueta == sugerencia.criterioSugerido)) {
+          _criterioObjetivo = sugerencia.criterioSugerido;
+        }
+      });
+
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              sugerencia.esGeminiNube
+                  ? 'Argumento optimizado con Gemini Flash'
+                  : 'Argumento optimizado con Enfoque Harvard',
+            ),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+    } finally {
+      if (mounted) {
+        setState(() => _mejorandoIa = false);
+      }
     }
   }
 
@@ -68,6 +133,8 @@ class _CrearNegociacionScreenState extends State<CrearNegociacionScreen> {
       descripcionPropuestaInicial: _propuestaCtrl.text,
       criterioObjetivoInicial: _criterioObjetivo,
       argumentoPersuasivoInicial: _argumentoCtrl.text,
+      dptoReceptorOverride: _dptoReceptorSeleccionado,
+      receptorIdOverride: _receptorIdSeleccionado,
     );
 
     if (!mounted) return;
@@ -81,7 +148,27 @@ class _CrearNegociacionScreenState extends State<CrearNegociacionScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.read<NegociacionProvider>();
-    final articuloSeleccionado = buscarArticuloPorEtiqueta(_criterioObjetivo);
+    final auth = Provider.of<AuthProvider?>(context);
+    final articulos = _articulosDisponibles(context);
+    if (!articulos.any((a) => a.etiqueta == _criterioObjetivo)) {
+      _criterioObjetivo = articulos.first.etiqueta;
+    }
+    final articuloSeleccionado =
+        buscarArticuloPorEtiqueta(_criterioObjetivo, articulos);
+
+    final otrosVecinos = (auth != null && provider.esModoNube)
+        ? auth.vecinosCondominio
+            .where((v) => v.departamento != provider.rolActivo)
+            .toList()
+        : const <PerfilUsuario>[];
+
+    if (otrosVecinos.isNotEmpty &&
+        (_dptoReceptorSeleccionado == null ||
+            !otrosVecinos
+                .any((v) => v.departamento == _dptoReceptorSeleccionado))) {
+      _dptoReceptorSeleccionado = otrosVecinos.first.departamento;
+      _receptorIdSeleccionado = otrosVecinos.first.id;
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -100,37 +187,63 @@ class _CrearNegociacionScreenState extends State<CrearNegociacionScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
+                    if (otrosVecinos.isNotEmpty) ...[
+                      SelectorCampoModal(
+                        labelText: 'Vecino destinatario',
+                        valorSeleccionado: _dptoReceptorSeleccionado!,
+                        opciones: otrosVecinos
+                            .map(
+                              (v) => OpcionSelector(
+                                valor: v.departamento,
+                                etiqueta: v.departamento,
+                                subtitulo: v.nombre,
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (dpto) {
+                          final elegido = otrosVecinos.firstWhere(
+                            (v) => v.departamento == dpto,
+                          );
+                          setState(() {
+                            _dptoReceptorSeleccionado = elegido.departamento;
+                            _receptorIdSeleccionado = elegido.id;
+                          });
+                        },
                       ),
-                      decoration: BoxDecoration(
-                        color: AppColors.formalizedBg,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.swap_horizontal_circle_outlined,
-                            size: 18,
-                            color: AppColors.formalizedText,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'De: ${provider.rolActivo}  →  Para: ${provider.otroDepartamento}',
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.formalizedText,
+                      const SizedBox(height: 12),
+                    ] else ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.formalizedBg,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.swap_horizontal_circle_outlined,
+                              size: 18,
+                              color: AppColors.formalizedText,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'De: ${provider.rolActivo}  →  Para: ${provider.otroDepartamento}',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.formalizedText,
+                                ),
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 14),
+                      const SizedBox(height: 14),
+                    ],
                     TextFormField(
                       controller: _tituloCtrl,
                       textCapitalization: TextCapitalization.sentences,
@@ -157,7 +270,7 @@ class _CrearNegociacionScreenState extends State<CrearNegociacionScreen> {
                       onChanged: (value) {
                         setState(() {
                           _categoria = value;
-                          _sincronizarCriterioPorCategoria(value);
+                          _sincronizarCriterioPorCategoria(value, articulos);
                         });
                       },
                     ),
@@ -286,7 +399,7 @@ class _CrearNegociacionScreenState extends State<CrearNegociacionScreen> {
                     SelectorCampoModal(
                       labelText: 'Criterio Objetivo (Base Normativa)',
                       valorSeleccionado: _criterioObjetivo,
-                      opciones: kReglamentoInterno
+                      opciones: articulos
                           .map(
                             (art) => OpcionSelector(
                               valor: art.etiqueta,
@@ -317,7 +430,37 @@ class _CrearNegociacionScreenState extends State<CrearNegociacionScreen> {
                         ),
                       ),
                     ],
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 10),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.aiPrimary,
+                          backgroundColor: AppColors.aiBg,
+                          minimumSize: const Size(0, 34),
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                        ),
+                        onPressed:
+                            _mejorandoIa ? null : _mejorarArgumentoConIa,
+                        icon: _mejorandoIa
+                            ? const SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.auto_awesome_rounded, size: 15),
+                        label: Text(
+                          _mejorandoIa ? 'Redactando...' : 'Mejorar con IA',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
                     TextFormField(
                       controller: _argumentoCtrl,
                       maxLines: 3,

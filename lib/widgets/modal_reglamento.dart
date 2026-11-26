@@ -1,10 +1,18 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:provider/provider.dart';
 
 import '../core/constants/reglamento_data.dart';
 import '../core/theme/app_theme.dart';
+import '../providers/reglamento_provider.dart';
 
 /// Opens a clean reference bottom sheet listing all internal condominium rules.
 Future<void> mostrarModalReglamento(BuildContext context) {
+  final reglamentoProvider = Provider.of<ReglamentoProvider?>(
+    context,
+    listen: false,
+  );
+  final articulos = reglamentoProvider?.articulos ?? kReglamentoInterno;
+
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
@@ -62,9 +70,9 @@ Future<void> mostrarModalReglamento(BuildContext context) {
                         ),
                       ],
                     ),
-                    const Text(
-                      'Base normativa para respaldar propuestas y acuerdos (Método Harvard).',
-                      style: TextStyle(
+                    Text(
+                      '${articulos.length} criterios normativos vigentes para respaldar propuestas (Método Harvard).',
+                      style: const TextStyle(
                         fontSize: 12.5,
                         color: AppColors.textSecondary,
                       ),
@@ -77,10 +85,10 @@ Future<void> mostrarModalReglamento(BuildContext context) {
                 child: ListView.separated(
                   padding: const EdgeInsets.all(16),
                   shrinkWrap: true,
-                  itemCount: kReglamentoInterno.length,
+                  itemCount: articulos.length,
                   separatorBuilder: (_, _) => const SizedBox(height: 10),
                   itemBuilder: (_, index) {
-                    final art = kReglamentoInterno[index];
+                    final art = articulos[index];
                     return Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(

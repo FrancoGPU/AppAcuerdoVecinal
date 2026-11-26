@@ -4,10 +4,15 @@ import 'dart:typed_data';
 import 'package:acuerdo_vecinal/core/constants/reglamento_data.dart';
 import 'package:acuerdo_vecinal/main.dart';
 import 'package:acuerdo_vecinal/models/condicion_model.dart';
+import 'package:acuerdo_vecinal/models/condominio_model.dart';
 import 'package:acuerdo_vecinal/models/mensaje_chat_model.dart';
 import 'package:acuerdo_vecinal/models/negociacion_model.dart';
+import 'package:acuerdo_vecinal/models/usuario_model.dart';
+import 'package:acuerdo_vecinal/providers/auth_provider.dart';
 import 'package:acuerdo_vecinal/providers/negociacion_provider.dart';
+import 'package:acuerdo_vecinal/providers/reglamento_provider.dart';
 import 'package:acuerdo_vecinal/services/acta_pdf_service.dart';
+import 'package:acuerdo_vecinal/services/mediador_ia_service.dart';
 import 'package:acuerdo_vecinal/widgets/signature_pad_widget.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -562,6 +567,230 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Última oferta: Dpto. 402'), findsOneWidget);
+    });
+  });
+
+  group('v2.0: Usuarios, Condominio, Reglamento Dinámico y Mediador IA', () {
+    test(
+        'PerfilUsuario, CondominioModel, ArticuloReglamento y NegociacionModel Supabase',
+        () {
+      final fecha = DateTime(2026, 11, 25, 19, 0);
+      final condominio = CondominioModel(
+        id: 'condo-1',
+        nombre: 'Residencial Los Pinos',
+        direccion: 'Av. Salaverry 1200',
+        codigoInvitacion: 'AV-9F2A',
+        adminId: 'uid-admin',
+        fechaCreacion: fecha,
+      );
+      final condoJson = CondominioModel.fromJson(condominio.toJson());
+      expect(condoJson.codigoInvitacion, 'AV-9F2A');
+      expect(condoJson.nombre, 'Residencial Los Pinos');
+
+      const perfil = PerfilUsuario(
+        id: 'uid-vecino',
+        email: 'vecino@condo.pe',
+        nombre: 'Ana Torres',
+        rol: RolUsuario.vecino,
+        departamento: 'Dpto. 501',
+        condominioId: 'condo-1',
+      );
+      final perfilRoundTrip = PerfilUsuario.fromJson(perfil.toJson());
+      expect(perfilRoundTrip.rol, RolUsuario.vecino);
+      expect(perfilRoundTrip.departamento, 'Dpto. 501');
+
+      const art = ArticuloReglamento(
+        id: 'art-custom',
+        etiqueta: 'Art. 40 - Uso de Ascensor de Carga',
+        resumen: 'Mudanzas permitidas de 8:00 a.m. a 6:00 p.m.',
+        categoria: 'Áreas Comunes',
+        orden: 7,
+      );
+      final artRoundTrip = ArticuloReglamento.fromJson(art.toJson());
+      expect(artRoundTrip.etiqueta, 'Art. 40 - Uso de Ascensor de Carga');
+      expect(artRoundTrip.toSupabaseMap('condo-1')['condominio_id'], 'condo-1');
+
+      final neg = NegociacionModel(
+        id: 'neg-cloud-1',
+        titulo: 'Mudanza en sábado',
+        categoria: 'Áreas Comunes',
+        descripcionProblema: 'Coordinación de horario de ascensor.',
+        dptoSolicitante: 'Dpto. 501',
+        dptoReceptor: 'Dpto. 502',
+        esAnonimo: false,
+        interesSolicitante: 'Trasladar muebles sin demoras.',
+        interesReceptor: 'Mantener libre el ingreso familiar.',
+        condiciones: const [],
+        estadoGeneral: EstadoNegociacion.enNegociacion,
+        fechaCreacion: fecha,
+        condominioId: 'condo-1',
+        solicitanteId: 'uid-vecino',
+        receptorId: 'uid-receptor',
+      );
+      final fromSupa = NegociacionModel.fromSupabaseMap(neg.toSupabaseMap());
+      expect(fromSupa.condominioId, 'condo-1');
+      expect(fromSupa.solicitanteId, 'uid-vecino');
+      expect(fromSupa.receptorId, 'uid-receptor');
+      expect(fromSupa.dptoReceptor, 'Dpto. 502');
+    });
+
+    test('ReglamentoProvider CRUD persiste artículos en almacenamiento local',
+        () async {
+      final reg1 = ReglamentoProvider();
+      await reg1.inicializarLocal();
+      expect(reg1.articulos.length, kReglamentoInterno.length);
+
+      final creado = await reg1.agregarArticulo(
+        etiqueta: 'Art. 50 - Patios y Bicicletas',
+        resumen: 'Estacionar bicicletas únicamente en el rack del sótano.',
+        categoria: 'Áreas Comunes',
+      );
+      expect(reg1.articulos.length, kReglamentoInterno.length + 1);
+      expect(reg1.comoContextoTexto(), contains('Art. 50 - Patios y Bicicletas'));
+
+      await reg1.actualizarArticulo(
+        creado.copyWith(resumen: 'Estacionar solo en el rack B del sótano.'),
+      );
+
+      final reg2 = ReglamentoProvider();
+      await reg2.inicializarLocal();
+      expect(
+        reg2.buscarPorEtiqueta('Art. 50 - Patios y Bicicletas')?.resumen,
+        'Estacionar solo en el rack B del sótano.',
+      );
+
+      await reg2.eliminarArticulo(creado.id);
+      expect(reg2.articulos.length, kReglamentoInterno.length);
+    });
+
+    test('MediadorIaService respaldo local aplica Método Harvard y reglamento',
+        () async {
+      const ia = MediadorIaService();
+      final sugerencia = await ia.mejorarArgumentoHarvard(
+        categoria: 'Ruido',
+        propuesta: 'Mantener música moderada desde las 10:00 p.m.',
+        borradorArgumento: 'Necesitamos descansar.',
+        reglamento: kReglamentoInterno,
+        interesPropio: 'Descansar antes del trabajo',
+        interesContraparte: 'Disfrutar música en casa',
+        intentarNube: false,
+      );
+
+      expect(sugerencia.esGeminiNube, isFalse);
+      expect(sugerencia.argumentoMejorado.length, greaterThanOrEqualTo(15));
+      expect(sugerencia.criterioSugerido, contains('Art. 14'));
+
+      final neg = NegociacionModel(
+        id: 'neg-ia',
+        titulo: 'Uso de cochera contigua',
+        categoria: 'Cochera',
+        descripcionProblema: 'Cierre cercano al límite.',
+        dptoSolicitante: kDpto301,
+        dptoReceptor: kDpto402,
+        esAnonimo: false,
+        interesSolicitante: 'Subir con mis hijos cómodamente.',
+        interesReceptor: 'Estacionar sin maniobras extra.',
+        condiciones: const [],
+        estadoGeneral: EstadoNegociacion.enNegociacion,
+        fechaCreacion: DateTime(2026, 11, 25),
+      );
+      final respuesta = await ia.consultarMediador(
+        negociacion: neg,
+        rolActivo: kDpto301,
+        consultaUsuario: '¿Qué artículo del reglamento aplica?',
+        reglamento: kReglamentoInterno,
+        intentarNube: false,
+      );
+      expect(respuesta.esGeminiNube, isFalse);
+      expect(respuesta.respuesta, contains('Art. 22'));
+    });
+
+    testWidgets(
+        'Flujo Demo: AuthScreen -> Admin crea reglamento -> Vecino ve artículo y usa Mediador IA',
+        (tester) async {
+      final auth = AuthProvider();
+      await tester.runAsync(auth.inicializar);
+
+      await tester.pumpWidget(AcuerdoVecinalApp(authOverride: auth));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Conectar Supabase e Ingresar'), findsOneWidget);
+      await tester.ensureVisible(find.text('Demo Admin'));
+      await tester.pumpAndSettle();
+      expect(find.text('Demo Admin'), findsOneWidget);
+
+      await tester.tap(find.text('Demo Admin'));
+      await tester.pumpAndSettle();
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 80)),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Nuevo Artículo'), findsOneWidget);
+      await tester.tap(find.text('Nuevo Artículo'));
+      await tester.pumpAndSettle();
+
+      final adminFields = find.byType(TextFormField);
+      await tester.enterText(adminFields.at(0), 'Art. 99 - Mascotas en Azotea');
+      await tester.enterText(
+        adminFields.at(1),
+        'Las mascotas deben llevar correa en la terraza común.',
+      );
+      await tester.ensureVisible(find.text('Publicar en Reglamento'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Publicar en Reglamento'));
+      await tester.pump();
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 80)),
+      );
+      await tester.pumpAndSettle();
+
+      final verticalScrollables = find.byWidgetPredicate(
+        (w) => w is Scrollable && w.axisDirection == AxisDirection.down,
+      );
+      await tester.scrollUntilVisible(
+        find.text('Art. 99 - Mascotas en Azotea'),
+        200,
+        scrollable: verticalScrollables.first,
+      );
+      expect(find.text('Art. 99 - Mascotas en Azotea'), findsOneWidget);
+
+      await tester.tap(find.text('Vista Vecino'));
+      await tester.pumpAndSettle();
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 80)),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Activos (2)'), findsOneWidget);
+
+      await tester.tap(find.byType(PopupMenuButton<String>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Consultar Reglamento Interno'));
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.text('Art. 99 - Mascotas en Azotea'),
+        200,
+        scrollable: verticalScrollables.last,
+      );
+      expect(find.text('Art. 99 - Mascotas en Azotea'), findsOneWidget);
+      await tester.tap(find.byTooltip('Cerrar'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Volumen de música y ensayos nocturnos'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Mediador IA Harvard'));
+      await tester.pumpAndSettle();
+      expect(find.text('Mediador IA Harvard'), findsOneWidget);
+
+      await tester.tap(find.text('Sugerir punto medio'));
+      await tester.pump();
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 80)),
+      );
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Análisis Harvard'), findsOneWidget);
     });
   });
 }

@@ -345,7 +345,9 @@ class _ActaAcuerdoScreenState extends State<ActaAcuerdoScreen> {
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
-                                  'Tu firma ya está registrada. Falta la firma de $otraParte (cambia de rol arriba).',
+                                  provider.esModoNube
+                                      ? 'Tu firma ya está registrada. Esperando la firma de $otraParte en tiempo real.'
+                                      : 'Tu firma ya está registrada. Falta la firma de $otraParte (cambia de rol arriba).',
                                   style: const TextStyle(
                                     fontSize: 12.5,
                                     fontWeight: FontWeight.w600,

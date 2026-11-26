@@ -6,9 +6,12 @@ import '../core/theme/app_theme.dart';
 import '../models/condicion_model.dart';
 import '../models/negociacion_model.dart';
 import '../providers/negociacion_provider.dart';
+import '../providers/reglamento_provider.dart';
+import '../services/mediador_ia_service.dart';
 import '../widgets/dialogo_rechazo.dart';
 import '../widgets/estado_badge.dart';
 import '../widgets/modal_contrapropuesta.dart';
+import '../widgets/modal_mediador_ia.dart';
 import '../widgets/modal_reglamento.dart';
 import '../widgets/role_switcher_chip.dart';
 import '../widgets/selector_campo_modal.dart';
@@ -77,20 +80,17 @@ class MesaNegociacionScreen extends StatelessWidget {
             onPressed: () => mostrarModalReglamento(context),
           ),
           IconButton(
-            icon: const Icon(Icons.auto_awesome_rounded),
-            tooltip: 'Mediador IA — Disponible en Fase 2',
+            icon: const Icon(
+              Icons.auto_awesome_rounded,
+              color: AppColors.aiPrimary,
+            ),
+            tooltip: 'Mediador IA Harvard',
             constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
             padding: EdgeInsets.zero,
-            onPressed: () {
-              ScaffoldMessenger.of(context)
-                ..clearSnackBars()
-                ..showSnackBar(
-                  const SnackBar(
-                    content: Text('Mediador IA — Disponible en Fase 2'),
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-            },
+            onPressed: () => mostrarModalMediadorIa(
+              context,
+              negociacionId: negociacion.id,
+            ),
           ),
         ],
       ),
@@ -329,11 +329,21 @@ class MesaNegociacionScreen extends StatelessWidget {
   }) async {
     final solicitarInteres = provider.rolActivo == negociacion.dptoReceptor &&
         negociacion.interesReceptor.trim().isEmpty;
+    final esSolicitante = provider.rolActivo == negociacion.dptoSolicitante;
+    final interesPropio = esSolicitante
+        ? negociacion.interesSolicitante
+        : negociacion.interesReceptor;
+    final interesContraparte = esSolicitante
+        ? negociacion.interesReceptor
+        : negociacion.interesSolicitante;
 
     final result = await mostrarModalContrapropuesta(
       context,
       condicion: condicion,
       solicitarInteresReceptor: solicitarInteres,
+      categoria: negociacion.categoria,
+      interesPropio: interesPropio,
+      interesContraparte: interesContraparte,
     );
     if (result == null) return;
 
@@ -359,7 +369,12 @@ class MesaNegociacionScreen extends StatelessWidget {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (_) => const _ModalAgregarCondicion(),
+      builder: (_) => _ModalAgregarCondicion(
+        categoria: negociacion.categoria,
+        interesPropio: provider.rolActivo == negociacion.dptoSolicitante
+            ? negociacion.interesSolicitante
+            : negociacion.interesReceptor,
+      ),
     );
 
     if (nueva == null) return;
@@ -467,7 +482,13 @@ class _NuevaCondicionResult {
 }
 
 class _ModalAgregarCondicion extends StatefulWidget {
-  const _ModalAgregarCondicion();
+  const _ModalAgregarCondicion({
+    required this.categoria,
+    required this.interesPropio,
+  });
+
+  final String categoria;
+  final String interesPropio;
 
   @override
   State<_ModalAgregarCondicion> createState() => _ModalAgregarCondicionState();
@@ -478,7 +499,21 @@ class _ModalAgregarCondicionState extends State<_ModalAgregarCondicion> {
   final _clausulaCtrl = TextEditingController();
   final _propuestaCtrl = TextEditingController();
   final _argumentoCtrl = TextEditingController();
-  String _criterio = kReglamentoInterno.first.etiqueta;
+  late String _criterio;
+  bool _mejorandoIa = false;
+
+  List<ArticuloReglamento> _articulosDisponibles(BuildContext context) {
+    final reg = Provider.of<ReglamentoProvider?>(context, listen: false);
+    final lista = reg?.articulos;
+    return (lista != null && lista.isNotEmpty) ? lista : kReglamentoInterno;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    final articulos = _articulosDisponibles(context);
+    _criterio = articulos.first.etiqueta;
+  }
 
   @override
   void dispose() {
@@ -486,6 +521,41 @@ class _ModalAgregarCondicionState extends State<_ModalAgregarCondicion> {
     _propuestaCtrl.dispose();
     _argumentoCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _mejorarArgumentoConIa() async {
+    if (_mejorandoIa) return;
+    setState(() => _mejorandoIa = true);
+
+    try {
+      final articulos = _articulosDisponibles(context);
+      final negProvider = Provider.of<NegociacionProvider?>(
+        context,
+        listen: false,
+      );
+      final servicioIa = negProvider?.mediadorIa ?? const MediadorIaService();
+
+      final sugerencia = await servicioIa.mejorarArgumentoHarvard(
+        categoria: widget.categoria,
+        propuesta: _propuestaCtrl.text,
+        borradorArgumento: _argumentoCtrl.text,
+        reglamento: articulos,
+        interesPropio: widget.interesPropio,
+        intentarNube: negProvider?.esModoNube ?? false,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _argumentoCtrl.text = sugerencia.argumentoMejorado;
+        if (articulos.any((a) => a.etiqueta == sugerencia.criterioSugerido)) {
+          _criterio = sugerencia.criterioSugerido;
+        }
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _mejorandoIa = false);
+      }
+    }
   }
 
   void _enviar() {
@@ -504,6 +574,10 @@ class _ModalAgregarCondicionState extends State<_ModalAgregarCondicion> {
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final articulos = _articulosDisponibles(context);
+    if (!articulos.any((a) => a.etiqueta == _criterio)) {
+      _criterio = articulos.first.etiqueta;
+    }
 
     return SafeArea(
       child: Padding(
@@ -567,7 +641,7 @@ class _ModalAgregarCondicionState extends State<_ModalAgregarCondicion> {
                 SelectorCampoModal(
                   labelText: 'Criterio Objetivo',
                   valorSeleccionado: _criterio,
-                  opciones: kReglamentoInterno
+                  opciones: articulos
                       .map(
                         (art) => OpcionSelector(
                           valor: art.etiqueta,
@@ -578,7 +652,35 @@ class _ModalAgregarCondicionState extends State<_ModalAgregarCondicion> {
                       .toList(),
                   onChanged: (value) => setState(() => _criterio = value),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.aiPrimary,
+                      backgroundColor: AppColors.aiBg,
+                      minimumSize: const Size(0, 34),
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                    ),
+                    onPressed:
+                        _mejorandoIa ? null : _mejorarArgumentoConIa,
+                    icon: _mejorandoIa
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.auto_awesome_rounded, size: 15),
+                    label: Text(
+                      _mejorandoIa ? 'Redactando...' : 'Mejorar con IA',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
                 TextFormField(
                   controller: _argumentoCtrl,
                   maxLines: 3,

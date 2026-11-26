@@ -26,6 +26,17 @@ class AppColors {
   static const Color formalizedBg = Color(0xFFEFF6FF);
 
   static const Color argumentBg = Color(0xFFF1F5F9);
+
+  static const Color aiPrimary = Color(0xFF4F46E5);
+  static const Color aiBg = Color(0xFFEEF2FF);
+  static const Color aiBorder = Color(0xFFC7D2FE);
+
+  static const Color adminPrimary = Color(0xFF0F766E);
+  static const Color adminBg = Color(0xFFF0FDFA);
+  static const Color adminBorder = Color(0xFF99F6E4);
+
+  static const Color heroDark = Color(0xFF0F172A);
+  static const Color heroBlue = Color(0xFF1E3A8A);
 }
 
 /// Material 3 light theme configuration for AcuerdoVecinal.

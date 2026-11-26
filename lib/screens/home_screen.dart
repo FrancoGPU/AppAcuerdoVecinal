@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../core/constants/reglamento_data.dart';
 import '../core/theme/app_theme.dart';
 import '../models/negociacion_model.dart';
+import '../providers/auth_provider.dart';
 import '../providers/negociacion_provider.dart';
 import '../widgets/estado_badge.dart';
 import '../widgets/modal_reglamento.dart';
@@ -87,8 +88,12 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<NegociacionProvider>();
+    final auth = Provider.of<AuthProvider?>(context);
     final activos = _filtrar(provider.activos);
     final formalizados = _filtrar(provider.formalizados);
+    final mostrarPanelAdminDemo = auth?.esModoDemo ?? false;
+    final mostrarCerrarSesion = auth?.estaAutenticado ?? false;
+    final condominio = auth?.condominioActual;
 
     return DefaultTabController(
       length: 2,
@@ -125,10 +130,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   await mostrarModalReglamento(context);
                 } else if (value == 'restaurar') {
                   await _confirmarRestaurarDemo(provider);
+                } else if (value == 'admin_demo' && auth != null) {
+                  await auth.cambiarVistaAdminDemo(true);
+                } else if (value == 'salir' && auth != null) {
+                  await auth.cerrarSesion();
                 }
               },
-              itemBuilder: (_) => const [
-                PopupMenuItem(
+              itemBuilder: (_) => [
+                const PopupMenuItem(
                   value: 'reglamento',
                   child: Row(
                     children: [
@@ -138,16 +147,43 @@ class _HomeScreenState extends State<HomeScreen> {
                     ],
                   ),
                 ),
-                PopupMenuItem(
-                  value: 'restaurar',
-                  child: Row(
-                    children: [
-                      Icon(Icons.restart_alt_rounded, size: 20),
-                      SizedBox(width: 8),
-                      Expanded(child: Text('Restaurar datos demo')),
-                    ],
+                if (mostrarPanelAdminDemo)
+                  const PopupMenuItem(
+                    value: 'admin_demo',
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.admin_panel_settings_outlined,
+                          size: 20,
+                          color: AppColors.adminPrimary,
+                        ),
+                        SizedBox(width: 8),
+                        Expanded(child: Text('Panel Administrador (Demo)')),
+                      ],
+                    ),
                   ),
-                ),
+                if (!provider.esModoNube)
+                  const PopupMenuItem(
+                    value: 'restaurar',
+                    child: Row(
+                      children: [
+                        Icon(Icons.restart_alt_rounded, size: 20),
+                        SizedBox(width: 8),
+                        Expanded(child: Text('Restaurar datos demo')),
+                      ],
+                    ),
+                  ),
+                if (mostrarCerrarSesion)
+                  const PopupMenuItem(
+                    value: 'salir',
+                    child: Row(
+                      children: [
+                        Icon(Icons.logout_rounded, size: 20),
+                        SizedBox(width: 8),
+                        Expanded(child: Text('Cambiar cuenta / Salir')),
+                      ],
+                    ),
+                  ),
               ],
             ),
           ],
@@ -189,6 +225,65 @@ class _HomeScreenState extends State<HomeScreen> {
                     seleccionada: _categoriaFiltro,
                     onChanged: (cat) => setState(() => _categoriaFiltro = cat),
                   ),
+                  if (condominio != null)
+                    Container(
+                      width: double.infinity,
+                      color: AppColors.surface,
+                      padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
+                      child: Row(
+                        children: [
+                          Icon(
+                            provider.esModoNube
+                                ? Icons.cloud_done_outlined
+                                : Icons.apartment_rounded,
+                            size: 15,
+                            color: provider.esModoNube
+                                ? AppColors.acceptedText
+                                : AppColors.textSecondary,
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              '${condominio.nombre} • Código ${condominio.codigoInvitacion}',
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ),
+                          if (mostrarPanelAdminDemo) ...[
+                            const SizedBox(width: 8),
+                            InkWell(
+                              borderRadius: BorderRadius.circular(14),
+                              onTap: () => auth!.cambiarVistaAdminDemo(true),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.adminBg,
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: AppColors.adminBorder,
+                                  ),
+                                ),
+                                child: const Text(
+                                  'Panel Admin',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.adminPrimary,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
                   Expanded(
                     child: TabBarView(
                       children: [

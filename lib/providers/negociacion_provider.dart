@@ -1,30 +1,52 @@
 import 'package:flutter/foundation.dart';
+import 'package:supabase/supabase.dart';
 import 'package:uuid/uuid.dart';
 
 import '../core/constants/reglamento_data.dart';
 import '../data/local_storage_service.dart';
 import '../data/mock_negociaciones.dart';
 import '../models/condicion_model.dart';
+import '../models/mensaje_chat_model.dart';
 import '../models/negociacion_model.dart';
+import '../models/usuario_model.dart';
+import '../services/mediador_ia_service.dart';
+import '../services/supabase_service.dart';
 
-/// Central state management and business rules for neighborhood negotiations.
+/// Central state management and business rules for neighborhood negotiations,
+/// supporting both Supabase Cloud Realtime and offline Local Demo mode.
 class NegociacionProvider extends ChangeNotifier {
   NegociacionProvider({
     LocalStorageService? storageService,
     Uuid? uuid,
+    SupabaseService? supabaseService,
+    MediadorIaService? mediadorIaService,
   })  : _storage = storageService ?? LocalStorageService(),
-        _uuid = uuid ?? const Uuid();
+        _uuid = uuid ?? const Uuid(),
+        _supabase = supabaseService,
+        _mediadorIa = mediadorIaService ??
+            MediadorIaService(supabaseService: supabaseService);
 
   final LocalStorageService _storage;
   final Uuid _uuid;
+  final SupabaseService? _supabase;
+  final MediadorIaService _mediadorIa;
 
   List<NegociacionModel> _negociaciones = [];
   String _rolActivo = kDpto301;
   bool _cargando = true;
+  bool _esModoNube = false;
+  PerfilUsuario? _usuarioActual;
+  RealtimeChannel? _canalNegociaciones;
+
+  final Map<String, List<MensajeChatModel>> _chatsMediador = {};
+  bool _consultandoIa = false;
 
   List<NegociacionModel> get negociaciones => List.unmodifiable(_negociaciones);
   String get rolActivo => _rolActivo;
   bool get cargando => _cargando;
+  bool get esModoNube => _esModoNube;
+  bool get consultandoIa => _consultandoIa;
+  MediadorIaService get mediadorIa => _mediadorIa;
 
   String get otroDepartamento => _rolActivo == kDpto301 ? kDpto402 : kDpto301;
 
@@ -36,11 +58,56 @@ class NegociacionProvider extends ChangeNotifier {
       .where((n) => n.estadoGeneral == EstadoNegociacion.formalizada)
       .toList();
 
+  List<MensajeChatModel> mensajesMediadorPara(String negociacionId) =>
+      List.unmodifiable(_chatsMediador[negociacionId] ?? const []);
+
   NegociacionModel? obtenerPorId(String id) {
     for (final item in _negociaciones) {
       if (item.id == id) return item;
     }
     return null;
+  }
+
+  /// Syncs negotiations with the authenticated cloud user or local demo session.
+  Future<void> sincronizarConSesion({
+    PerfilUsuario? usuario,
+    required bool esNube,
+  }) async {
+    await _limpiarCanal();
+    _usuarioActual = usuario;
+    _esModoNube =
+        esNube && usuario != null && (_supabase?.estaListo ?? false);
+
+    if (_esModoNube) {
+      _cargando = true;
+      _rolActivo = usuario!.esAdmin ? 'Administración' : usuario.departamento;
+      notifyListeners();
+
+      try {
+        _negociaciones =
+            await _supabase!.cargarNegociaciones(usuario.condominioId);
+        _canalNegociaciones = _supabase.suscribirNegociaciones(
+          usuario.condominioId,
+          _recargarDesdeNube,
+        );
+      } finally {
+        _cargando = false;
+        notifyListeners();
+      }
+      return;
+    }
+
+    await inicializar();
+  }
+
+  Future<void> _recargarDesdeNube() async {
+    final usuario = _usuarioActual;
+    if (!_esModoNube || usuario == null || _supabase == null) return;
+    try {
+      _negociaciones =
+          await _supabase.cargarNegociaciones(usuario.condominioId);
+      notifyListeners();
+    } catch (_) {}
   }
 
   /// Loads persisted negotiations and role, seeding demo data on first launch.
@@ -66,13 +133,16 @@ class NegociacionProvider extends ChangeNotifier {
 
   /// Resets stored cases back to the initial demonstration seed data.
   Future<void> restaurarDatosDemo() async {
+    if (_esModoNube) return;
     _negociaciones = generarNegociacionesDemo();
     await _storage.guardarNegociaciones(_negociaciones);
     notifyListeners();
   }
 
-  /// Toggles the simulated active department between Dpto. 301 and Dpto. 402.
+  /// Toggles the simulated active department between Dpto. 301 and Dpto. 402
+  /// in Local Demo mode. Disabled in authenticated Cloud mode.
   Future<void> alternarRol() async {
+    if (_esModoNube) return;
     _rolActivo = otroDepartamento;
     await _storage.guardarRolActivo(_rolActivo);
     notifyListeners();
@@ -110,6 +180,8 @@ class NegociacionProvider extends ChangeNotifier {
     required String descripcionPropuestaInicial,
     required String criterioObjetivoInicial,
     required String argumentoPersuasivoInicial,
+    String? dptoReceptorOverride,
+    String? receptorIdOverride,
   }) async {
     final nuevaCondicion = CondicionModel(
       id: _uuid.v4(),
@@ -127,14 +199,24 @@ class NegociacionProvider extends ChangeNotifier {
       categoria: categoria,
       descripcionProblema: descripcionProblema.trim(),
       dptoSolicitante: _rolActivo,
-      dptoReceptor: otroDepartamento,
+      dptoReceptor: dptoReceptorOverride ?? otroDepartamento,
       esAnonimo: esAnonimo,
       interesSolicitante: interesSolicitante.trim(),
       interesReceptor: '',
       condiciones: [nuevaCondicion],
       estadoGeneral: EstadoNegociacion.enNegociacion,
       fechaCreacion: DateTime.now(),
+      condominioId: _esModoNube ? _usuarioActual?.condominioId : null,
+      solicitanteId: _esModoNube ? _usuarioActual?.id : null,
+      receptorId: _esModoNube ? receptorIdOverride : null,
     );
+
+    if (_esModoNube && _supabase != null) {
+      final guardadaNube = await _supabase.crearNegociacion(nueva);
+      _negociaciones = [guardadaNube, ..._negociaciones];
+      notifyListeners();
+      return guardadaNube;
+    }
 
     _negociaciones = [nueva, ..._negociaciones];
     await _storage.guardarNegociaciones(_negociaciones);
@@ -437,6 +519,87 @@ class NegociacionProvider extends ChangeNotifier {
     return formalizada;
   }
 
+  /// Loads AI Mediator chat history for [negociacionId].
+  Future<void> cargarMensajesMediador(String negociacionId) async {
+    if (_esModoNube && _supabase != null) {
+      final remotos = await _supabase.cargarMensajesMediador(negociacionId);
+      if (remotos.isNotEmpty) {
+        _chatsMediador[negociacionId] = remotos;
+        notifyListeners();
+      }
+    }
+  }
+
+  /// Sends a question to the Harvard AI Mediator (Gemini cloud or local fallback).
+  Future<RespuestaMediadorIa?> enviarConsultaMediador({
+    required String negociacionId,
+    required String consulta,
+    required List<ArticuloReglamento> reglamento,
+  }) async {
+    final limpio = consulta.trim();
+    if (limpio.isEmpty) return null;
+
+    final negociacion = obtenerPorId(negociacionId);
+    if (negociacion == null) return null;
+
+    final msgUsuario = MensajeChatModel(
+      id: _uuid.v4(),
+      negociacionId: negociacionId,
+      texto: limpio,
+      esUsuario: true,
+      fecha: DateTime.now(),
+    );
+
+    final actual = [...(_chatsMediador[negociacionId] ?? const <MensajeChatModel>[])];
+    actual.add(msgUsuario);
+    _chatsMediador[negociacionId] = actual;
+    _consultandoIa = true;
+    notifyListeners();
+
+    if (_esModoNube && _supabase != null && _usuarioActual != null) {
+      await _supabase.guardarMensajeMediador(
+        msgUsuario,
+        usuarioId: _usuarioActual!.id,
+      );
+    }
+
+    try {
+      final resultado = await _mediadorIa.consultarMediador(
+        negociacion: negociacion,
+        rolActivo: _rolActivo,
+        consultaUsuario: limpio,
+        reglamento: reglamento,
+        historial: actual,
+        intentarNube: _esModoNube,
+      );
+
+      final msgIa = MensajeChatModel(
+        id: _uuid.v4(),
+        negociacionId: negociacionId,
+        texto: resultado.respuesta,
+        esUsuario: false,
+        fecha: DateTime.now(),
+      );
+
+      _chatsMediador[negociacionId] = [
+        ...(_chatsMediador[negociacionId] ?? const <MensajeChatModel>[]),
+        msgIa,
+      ];
+
+      if (_esModoNube && _supabase != null && _usuarioActual != null) {
+        await _supabase.guardarMensajeMediador(
+          msgIa,
+          usuarioId: _usuarioActual!.id,
+        );
+      }
+
+      return resultado;
+    } finally {
+      _consultandoIa = false;
+      notifyListeners();
+    }
+  }
+
   Future<bool> _guardarActualizacion(
     int index,
     NegociacionModel actualizada,
@@ -444,8 +607,43 @@ class NegociacionProvider extends ChangeNotifier {
     final copia = [..._negociaciones];
     copia[index] = actualizada;
     _negociaciones = copia;
+
+    if (_esModoNube && _supabase != null) {
+      notifyListeners();
+      try {
+        final remota = await _supabase.actualizarNegociacion(actualizada);
+        final idxActual =
+            _negociaciones.indexWhere((n) => n.id == actualizada.id);
+        if (idxActual != -1) {
+          final refrescada = [..._negociaciones];
+          refrescada[idxActual] = remota;
+          _negociaciones = refrescada;
+        }
+        notifyListeners();
+        return true;
+      } catch (_) {
+        await _recargarDesdeNube();
+        return false;
+      }
+    }
+
     await _storage.guardarNegociaciones(_negociaciones);
     notifyListeners();
     return true;
+  }
+
+  Future<void> _limpiarCanal() async {
+    if (_canalNegociaciones != null && _supabase != null) {
+      await _supabase.removerCanal(_canalNegociaciones);
+      _canalNegociaciones = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    if (_canalNegociaciones != null && _supabase != null) {
+      _supabase.removerCanal(_canalNegociaciones);
+    }
+    super.dispose();
   }
 }
