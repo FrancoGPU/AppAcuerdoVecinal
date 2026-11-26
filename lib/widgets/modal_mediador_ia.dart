@@ -35,6 +35,7 @@ class _ModalMediadorIa extends StatefulWidget {
 class _ModalMediadorIaState extends State<_ModalMediadorIa> {
   final TextEditingController _inputCtrl = TextEditingController();
   final ScrollController _scrollCtrl = ScrollController();
+  bool? _ultimaRespuestaNube;
 
   static const List<String> _sugerenciasRapidas = [
     'Sugerir punto medio',
@@ -69,13 +70,16 @@ class _ModalMediadorIaState extends State<_ModalMediadorIa> {
     final regProvider = Provider.of<ReglamentoProvider?>(context, listen: false);
     final articulos = regProvider?.articulos ?? kReglamentoInterno;
 
-    await negProvider.enviarConsultaMediador(
+    final res = await negProvider.enviarConsultaMediador(
       negociacionId: widget.negociacionId,
       consulta: consulta,
       reglamento: articulos,
     );
 
     if (!mounted) return;
+    if (res != null) {
+      setState(() => _ultimaRespuestaNube = res.esGeminiNube);
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollCtrl.hasClients) {
         _scrollCtrl.animateTo(
@@ -93,6 +97,7 @@ class _ModalMediadorIaState extends State<_ModalMediadorIa> {
     final mensajes = negProvider.mensajesMediadorPara(widget.negociacionId);
     final consultando = negProvider.consultandoIa;
     final esNube = negProvider.esModoNube;
+    final usandoRespaldoLocal = esNube && _ultimaRespuestaNube == false;
     final maxHeight = MediaQuery.sizeOf(context).height * 0.82;
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
@@ -164,16 +169,26 @@ class _ModalMediadorIaState extends State<_ModalMediadorIa> {
                             vertical: 4,
                           ),
                           decoration: BoxDecoration(
-                            color: AppColors.aiBg,
+                            color: usandoRespaldoLocal
+                                ? AppColors.pendingBg
+                                : AppColors.aiBg,
                             borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: AppColors.aiBorder),
+                            border: Border.all(
+                              color: usandoRespaldoLocal
+                                  ? AppColors.pendingText.withValues(alpha: 0.35)
+                                  : AppColors.aiBorder,
+                            ),
                           ),
                           child: Text(
-                            esNube ? 'Gemini Flash' : 'Asistente Local',
-                            style: const TextStyle(
+                            usandoRespaldoLocal
+                                ? 'Respaldo Local'
+                                : (esNube ? 'Gemini Flash' : 'Asistente Local'),
+                            style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w700,
-                              color: AppColors.aiPrimary,
+                              color: usandoRespaldoLocal
+                                  ? AppColors.pendingText
+                                  : AppColors.aiPrimary,
                             ),
                           ),
                         ),

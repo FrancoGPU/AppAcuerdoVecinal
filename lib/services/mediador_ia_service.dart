@@ -31,6 +31,8 @@ class CasoEstructuradoIa {
     required this.criterioObjetivo,
     required this.argumentoPersuasivo,
     required this.esGeminiNube,
+    this.fueraDeAlcance = false,
+    this.motivoFueraDeAlcance,
   });
 
   final String titulo;
@@ -42,6 +44,8 @@ class CasoEstructuradoIa {
   final String criterioObjetivo;
   final String argumentoPersuasivo;
   final bool esGeminiNube;
+  final bool fueraDeAlcance;
+  final String? motivoFueraDeAlcance;
 }
 
 /// Complete balanced counter-offer suggested by the AI Mediator.
@@ -97,6 +101,25 @@ class MediadorIaService {
         'categorias': kCategoriasConflicto,
         'reglamentoTexto': reglamentoComoContextoTexto(articulos),
       });
+
+      if (data?['fueraDeAlcance'] == true) {
+        final motivo = (data?['motivoRechazo'] as String? ?? '').trim();
+        return CasoEstructuradoIa(
+          titulo: '',
+          categoria: kCategoriasConflicto.last,
+          descripcionProblema: '',
+          interesSolicitante: '',
+          tituloClausula: '',
+          descripcionPropuesta: '',
+          criterioObjetivo: articulos.last.etiqueta,
+          argumentoPersuasivo: '',
+          esGeminiNube: true,
+          fueraDeAlcance: true,
+          motivoFueraDeAlcance: motivo.isNotEmpty
+              ? motivo
+              : 'Solo puedo estructurar situaciones de convivencia vecinal en el condominio.',
+        );
+      }
 
       final titulo = (data?['titulo'] as String? ?? '').trim();
       final desc = (data?['descripcionProblema'] as String? ?? '').trim();
@@ -355,10 +378,159 @@ class MediadorIaService {
     return 'Otros';
   }
 
+  bool _esConsultaFueraDeAlcance(String texto) {
+    final lower = texto.toLowerCase();
+    const enDominio = [
+      'vecin',
+      'dpto',
+      'departamento',
+      'edificio',
+      'condominio',
+      'reglamento',
+      'artículo',
+      'articulo',
+      'ruido',
+      'música',
+      'musica',
+      'bulla',
+      'mascota',
+      'perro',
+      'gato',
+      'cochera',
+      'estacionamiento',
+      'auto',
+      'carro',
+      'área',
+      'area',
+      'pasadizo',
+      'ascensor',
+      'terraza',
+      'parrilla',
+      'acuerdo',
+      'cláusula',
+      'clausula',
+      'propuesta',
+      'contrapropuesta',
+      'contraoferta',
+      'negoci',
+      'mediad',
+      'harvard',
+      'punto medio',
+      'criterio',
+      'acta',
+      'firma',
+      'interés',
+      'interes',
+      'concilia',
+      'conflicto',
+      'convivencia',
+      'horario',
+      'silencio',
+      'limpieza',
+      'basura',
+      'agua',
+      'filtraci',
+      'olor',
+      'humo',
+      'fiesta',
+      'balcón',
+      'balcon',
+      'puerta',
+      'llave',
+      'portón',
+      'porton',
+      'administr',
+      'multa',
+      'sanción',
+      'sancion',
+      'reclamo',
+      'queja',
+      'empat',
+      'redact',
+      'tono',
+      'solución',
+      'solucion',
+    ];
+    for (final palabra in enDominio) {
+      if (lower.contains(palabra)) return false;
+    }
+
+    const fueraDeDominio = [
+      'programar',
+      'hola mundo',
+      'hello world',
+      'código',
+      'codigo',
+      'python',
+      'javascript',
+      'java',
+      'html',
+      'css',
+      'flutter',
+      'dart',
+      'sql',
+      'algoritmo',
+      'compilar',
+      'receta',
+      'cocinar',
+      'ingredientes',
+      'chiste',
+      'poema',
+      'canción',
+      'cancion',
+      'película',
+      'pelicula',
+      'fútbol',
+      'futbol',
+      'partido',
+      'clima',
+      'temperatura',
+      'capital de',
+      'quién ganó',
+      'quien gano',
+      'cuánto es',
+      'cuanto es',
+      'ecuación',
+      'ecuacion',
+      'derivada',
+      'integral',
+      'traduce',
+      'traducir',
+      'bitcoin',
+      'cripto',
+      'horóscopo',
+      'horoscopo',
+      'videojuego',
+      'minecraft',
+      'fortnite',
+    ];
+    for (final palabra in fueraDeDominio) {
+      if (lower.contains(palabra)) return true;
+    }
+    return false;
+  }
+
   CasoEstructuradoIa _estructurarCasoLocal({
     required String relatoUsuario,
     required List<ArticuloReglamento> reglamento,
   }) {
+    if (_esConsultaFueraDeAlcance(relatoUsuario)) {
+      return CasoEstructuradoIa(
+        titulo: '',
+        categoria: kCategoriasConflicto.last,
+        descripcionProblema: '',
+        interesSolicitante: '',
+        tituloClausula: '',
+        descripcionPropuesta: '',
+        criterioObjetivo: reglamento.last.etiqueta,
+        argumentoPersuasivo: '',
+        esGeminiNube: false,
+        fueraDeAlcance: true,
+        motivoFueraDeAlcance:
+            'Solo puedo estructurar situaciones de convivencia vecinal en el condominio (ruido, mascotas, cochera, áreas comunes u otros acuerdos entre vecinos).',
+      );
+    }
+
     final cat = _inferirCategoria(relatoUsuario);
     final art = _seleccionarArticuloPorCategoria(cat, reglamento);
 
@@ -517,6 +689,10 @@ class MediadorIaService {
     required String consultaUsuario,
     required List<ArticuloReglamento> reglamento,
   }) {
+    if (_esConsultaFueraDeAlcance(consultaUsuario)) {
+      return 'Solo puedo orientarte sobre convivencia vecinal, el Reglamento Interno y el Método Harvard aplicados al caso "${negociacion.titulo}". ¿Quieres revisar qué artículo aplica o explorar un punto medio?';
+    }
+
     final articulo = _seleccionarArticuloPorCategoria(
       negociacion.categoria,
       reglamento,

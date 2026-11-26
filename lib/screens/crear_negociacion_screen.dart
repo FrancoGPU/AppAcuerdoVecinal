@@ -504,32 +504,39 @@ class _CrearNegociacionScreenState extends State<CrearNegociacionScreen> {
                         ),
                       ),
                     ],
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 8),
                     Align(
                       alignment: Alignment.centerRight,
                       child: TextButton.icon(
                         style: TextButton.styleFrom(
-                          foregroundColor: AppColors.aiPrimary,
-                          backgroundColor: AppColors.aiBg,
-                          minimumSize: const Size(0, 34),
-                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          foregroundColor: AppColors.textSecondary,
+                          backgroundColor: Colors.transparent,
+                          minimumSize: const Size(0, 28),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
                         onPressed:
                             _mejorandoIa ? null : _mejorarArgumentoConIa,
                         icon: _mejorandoIa
                             ? const SizedBox(
-                                width: 14,
-                                height: 14,
+                                width: 13,
+                                height: 13,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
                                 ),
                               )
-                            : const Icon(Icons.auto_awesome_rounded, size: 15),
+                            : const Icon(
+                                Icons.auto_fix_high_rounded,
+                                size: 14,
+                              ),
                         label: Text(
-                          _mejorandoIa ? 'Redactando...' : 'Mejorar con IA',
+                          _mejorandoIa ? 'Puliendo...' : 'Pulir tono',
                           style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ),
@@ -655,6 +662,7 @@ class _ModalEstructurarCasoIaState extends State<_ModalEstructurarCasoIa> {
   final _formKey = GlobalKey<FormState>();
   final _relatoCtrl = TextEditingController();
   bool _procesando = false;
+  String? _mensajeFueraDeAlcance;
 
   @override
   void dispose() {
@@ -665,7 +673,10 @@ class _ModalEstructurarCasoIaState extends State<_ModalEstructurarCasoIa> {
   Future<void> _generar() async {
     if (!_formKey.currentState!.validate() || _procesando) return;
     FocusManager.instance.primaryFocus?.unfocus();
-    setState(() => _procesando = true);
+    setState(() {
+      _procesando = true;
+      _mensajeFueraDeAlcance = null;
+    });
 
     try {
       final resultado = await widget.mediadorIa.estructurarCasoHarvard(
@@ -673,9 +684,15 @@ class _ModalEstructurarCasoIaState extends State<_ModalEstructurarCasoIa> {
         reglamento: widget.articulos,
         intentarNube: widget.esModoNube,
       );
-      if (mounted) {
-        Navigator.of(context).pop(resultado);
+      if (!mounted) return;
+      if (resultado.fueraDeAlcance) {
+        setState(() {
+          _mensajeFueraDeAlcance = resultado.motivoFueraDeAlcance ??
+              'Describe una situación real de convivencia vecinal en tu condominio.';
+        });
+        return;
       }
+      Navigator.of(context).pop(resultado);
     } finally {
       if (mounted) {
         setState(() => _procesando = false);
@@ -755,6 +772,40 @@ class _ModalEstructurarCasoIaState extends State<_ModalEstructurarCasoIa> {
                     return null;
                   },
                 ),
+                if (_mensajeFueraDeAlcance != null) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.pendingBg,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: AppColors.pendingText.withValues(alpha: 0.35),
+                      ),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(
+                          Icons.info_outline_rounded,
+                          size: 16,
+                          color: AppColors.pendingText,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _mensajeFueraDeAlcance!,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              height: 1.35,
+                              color: AppColors.pendingText,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 16),
                 SizedBox(
                   height: 48,

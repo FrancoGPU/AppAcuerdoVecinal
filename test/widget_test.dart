@@ -962,5 +962,46 @@ void main() {
       expect(find.text('Anónimo • Identidad protegida'), findsOneWidget);
       expect(find.textContaining('Vecino Anónimo ↔ Dpto. 402'), findsOneWidget);
     });
+
+    test(
+        'MediadorIaService rechaza consultas fuera de alcance en chat y estructuración local',
+        () async {
+      const ia = MediadorIaService();
+
+      final neg = NegociacionModel(
+        id: 'neg-guardrail',
+        titulo: 'Coordinación de horarios y niveles de ruido',
+        categoria: 'Ruido',
+        descripcionProblema: 'Música alta después de las 11 p.m.',
+        dptoSolicitante: kDpto301,
+        dptoReceptor: kDpto402,
+        esAnonimo: false,
+        interesSolicitante: 'Descansar adecuadamente en la noche.',
+        interesReceptor: 'Disfrutar música en horarios diurnos.',
+        condiciones: const [],
+        estadoGeneral: EstadoNegociacion.enNegociacion,
+        fechaCreacion: DateTime(2026, 11, 26),
+      );
+
+      final chatOffTopic = await ia.consultarMediador(
+        negociacion: neg,
+        rolActivo: kDpto301,
+        consultaUsuario: 'Como se puede programar un hola mundo',
+        reglamento: kReglamentoInterno,
+        intentarNube: false,
+      );
+      expect(chatOffTopic.esGeminiNube, isFalse);
+      expect(chatOffTopic.respuesta, contains('convivencia vecinal'));
+      expect(chatOffTopic.respuesta, isNot(contains('Análisis Harvard')));
+
+      final casoOffTopic = await ia.estructurarCasoHarvard(
+        relatoUsuario: 'Como se puede programar un hola mundo en Python',
+        reglamento: kReglamentoInterno,
+        intentarNube: false,
+      );
+      expect(casoOffTopic.fueraDeAlcance, isTrue);
+      expect(casoOffTopic.motivoFueraDeAlcance, isNotNull);
+      expect(casoOffTopic.motivoFueraDeAlcance!.trim(), isNotEmpty);
+    });
   });
 }
