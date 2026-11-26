@@ -1,11 +1,11 @@
 {
-    "name": "acuerdo_vecinal",
-    "short_name": "acuerdo_vecinal",
+    "name": "AcuerdoVecinal",
+    "short_name": "AcuerdoVecinal",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#0F172A",
+    "theme_color": "#2563EB",
+    "description": "Mediación vecinal basada en el Método Harvard, reglamento dinámico y Actas PDF.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

@@ -14,24 +14,29 @@ function jsonResponse(payload: unknown, status = 200): Response {
   });
 }
 
-async function callGemini(
+function cleanJsonFences(raw: string): string {
+  return raw
+    .replace(/^```json\s*/i, "")
+    .replace(/^```\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
+}
+
+async function callGeminiWithModel(
+  apiKey: string,
+  model: string,
   prompt: string,
   expectJson: boolean,
-): Promise<string> {
-  const apiKey = Deno.env.get("GEMINI_API_KEY");
-  if (!apiKey) {
-    throw new Error("GEMINI_API_KEY_NOT_CONFIGURED");
-  }
-
-  const model = Deno.env.get("GEMINI_MODEL") ?? "gemini-2.5-flash";
+): Promise<{ ok: boolean; status: number; text?: string; errText?: string }> {
+  const cleanModel = model.replace(/^models\//, "");
   const url =
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:generateContent?key=${apiKey}`;
 
   const body: Record<string, unknown> = {
     contents: [{ role: "user", parts: [{ text: prompt }] }],
     generationConfig: {
-      temperature: 0.45,
-      maxOutputTokens: 700,
+      temperature: 0.4,
+      maxOutputTokens: 1200,
       ...(expectJson ? { responseMimeType: "application/json" } : {}),
     },
   };
@@ -43,16 +48,60 @@ async function callGemini(
   });
 
   if (!resp.ok) {
-    const errText = await resp.text();
-    throw new Error(`GEMINI_HTTP_${resp.status}: ${errText}`);
+    return {
+      ok: false,
+      status: resp.status,
+      errText: await resp.text(),
+    };
   }
 
   const data = await resp.json();
   const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
   if (typeof text !== "string" || text.trim().length === 0) {
-    throw new Error("GEMINI_EMPTY_RESPONSE");
+    return {
+      ok: false,
+      status: 502,
+      errText: "GEMINI_EMPTY_RESPONSE",
+    };
   }
-  return text.trim();
+  return { ok: true, status: 200, text: text.trim() };
+}
+
+async function callGemini(
+  prompt: string,
+  expectJson: boolean,
+): Promise<string> {
+  const apiKey = Deno.env.get("GEMINI_API_KEY");
+  if (!apiKey) {
+    throw new Error("GEMINI_API_KEY_NOT_CONFIGURED");
+  }
+
+  const envModel = Deno.env.get("GEMINI_MODEL")?.trim();
+  const candidates = Array.from(
+    new Set(
+      [
+        ...(envModel ? [envModel] : []),
+        "gemini-3.8-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-2.0-flash",
+      ].filter((m) => m.length > 0),
+    ),
+  );
+
+  let lastError = "GEMINI_UNAVAILABLE";
+  for (const model of candidates) {
+    const res = await callGeminiWithModel(apiKey, model, prompt, expectJson);
+    if (res.ok && res.text) {
+      return expectJson ? cleanJsonFences(res.text) : res.text;
+    }
+    lastError = `GEMINI_HTTP_${res.status} (${model}): ${res.errText ?? ""}`;
+    // Only retry another model when current model ID is not found/deprecated (404).
+    if (res.status !== 404) {
+      break;
+    }
+  }
+
+  throw new Error(lastError);
 }
 
 serve(async (req: Request) => {
@@ -68,6 +117,87 @@ serve(async (req: Request) => {
     const body = await req.json();
     const modo = String(body?.modo ?? "consulta_mediador");
     const reglamentoTexto = String(body?.reglamentoTexto ?? "");
+
+    if (modo === "estructurar_caso") {
+      const relatoUsuario = String(body?.relatoUsuario ?? "");
+      const categorias = Array.isArray(body?.categorias)
+        ? body.categorias.join(", ")
+        : "Ruido, Mascotas, Cochera, Áreas Comunes, Otros";
+
+      const prompt = `
+Eres un mediador experto en el Método Harvard de negociación vecinal.
+El vecino describió su problema cotidiano en lenguaje informal:
+"${relatoUsuario}"
+
+Categorías permitidas (elige exactamente UNA): ${categorias}
+
+${reglamentoTexto}
+
+Convierte este relato en una solicitud constructiva (separando persona y problema, sin ataques, centrada en intereses reales y respaldo normativo).
+Devuelve exclusivamente un JSON válido con esta estructura exacta:
+{
+  "titulo": "Título breve y neutral (6 a 45 caracteres)",
+  "categoria": "Una sola categoría de la lista permitida",
+  "descripcionProblema": "Descripción objetiva de los hechos concretos (mín. 20 caracteres)",
+  "interesSolicitante": "Necesidad real que protege el vecino (descanso, seguridad, acceso, etc., mín. 15 caracteres)",
+  "tituloClausula": "Título corto de la primera cláusula propuesta (mín. 8 caracteres)",
+  "descripcionPropuesta": "Medida concreta, medible y razonable (mín. 20 caracteres)",
+  "criterioObjetivo": "La etiqueta exacta de uno de los artículos del reglamento listado arriba",
+  "argumentoPersuasivo": "Argumento empático de beneficio mutuo (25 a 65 palabras)"
+}
+`.trim();
+
+      const raw = await callGemini(prompt, true);
+      const parsed = JSON.parse(raw);
+      return jsonResponse({
+        titulo: String(parsed?.titulo ?? "").trim(),
+        categoria: String(parsed?.categoria ?? "Otros").trim(),
+        descripcionProblema: String(parsed?.descripcionProblema ?? "").trim(),
+        interesSolicitante: String(parsed?.interesSolicitante ?? "").trim(),
+        tituloClausula: String(parsed?.tituloClausula ?? "").trim(),
+        descripcionPropuesta: String(parsed?.descripcionPropuesta ?? "").trim(),
+        criterioObjetivo: String(parsed?.criterioObjetivo ?? "").trim(),
+        argumentoPersuasivo: String(parsed?.argumentoPersuasivo ?? "").trim(),
+      });
+    }
+
+    if (modo === "sugerir_contrapropuesta") {
+      const tituloClausula = String(body?.tituloClausula ?? "");
+      const propuestaActual = String(body?.propuestaActual ?? "");
+      const motivoRechazo = String(body?.motivoRechazo ?? "");
+      const categoria = String(body?.categoria ?? "Otros");
+      const interesPropio = String(body?.interesPropio ?? "");
+      const interesContraparte = String(body?.interesContraparte ?? "");
+
+      const prompt = `
+Eres un mediador experto en el Método Harvard buscando una solución puente de beneficio mutuo.
+Cláusula en debate: "${tituloClausula}" (Categoría: ${categoria})
+Propuesta actual en mesa: "${propuestaActual}"
+Motivo de rechazo o reparo previo: "${motivoRechazo || "No especificado"}"
+Interés de quien contraoferta: "${interesPropio || "No especificado"}"
+Interés de la otra parte: "${interesContraparte || "No especificado"}"
+
+${reglamentoTexto}
+
+Formula una contrapropuesta equilibrada de punto medio.
+Devuelve exclusivamente un JSON válido con esta estructura exacta:
+{
+  "nuevaPropuesta": "Propuesta concreta y verificable de punto medio (20 a 55 palabras)",
+  "criterioSugerido": "La etiqueta exacta del artículo del reglamento listado arriba que mejor respalda la alternativa",
+  "argumentoMejorado": "Sustento empático explicando cómo atiende ambos intereses (25 a 65 palabras)",
+  "explicacionBreve": "Frase corta explicando el punto de equilibrio alcanzado."
+}
+`.trim();
+
+      const raw = await callGemini(prompt, true);
+      const parsed = JSON.parse(raw);
+      return jsonResponse({
+        nuevaPropuesta: String(parsed?.nuevaPropuesta ?? "").trim(),
+        criterioSugerido: String(parsed?.criterioSugerido ?? "").trim(),
+        argumentoMejorado: String(parsed?.argumentoMejorado ?? "").trim(),
+        explicacionBreve: String(parsed?.explicacionBreve ?? "").trim(),
+      });
+    }
 
     if (modo === "mejorar_argumento") {
       const categoria = String(body?.categoria ?? "Otros");

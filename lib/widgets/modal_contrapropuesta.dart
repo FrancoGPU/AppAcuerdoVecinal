@@ -109,6 +109,59 @@ class _ModalContrapropuestaState extends State<_ModalContrapropuesta> {
     super.dispose();
   }
 
+  Future<void> _sugerirContrapropuestaConIa() async {
+    if (_mejorandoIa) return;
+    setState(() => _mejorandoIa = true);
+
+    try {
+      final articulos = _articulosDisponibles(context);
+      final negProvider = Provider.of<NegociacionProvider?>(
+        context,
+        listen: false,
+      );
+      final servicioIa = negProvider?.mediadorIa ?? const MediadorIaService();
+
+      final sugerencia = await servicioIa.sugerirContrapropuestaHarvard(
+        tituloClausula: widget.condicion.tituloClausula,
+        propuestaActual: widget.condicion.descripcionPropuesta,
+        motivoRechazo: widget.condicion.motivoRechazo,
+        categoria: widget.categoria,
+        reglamento: articulos,
+        interesPropio: _interesCtrl.text.trim().isNotEmpty
+            ? _interesCtrl.text
+            : widget.interesPropio,
+        interesContraparte: widget.interesContraparte,
+        intentarNube: negProvider?.esModoNube ?? false,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _propuestaCtrl.text = sugerencia.nuevaPropuesta;
+        _argumentoCtrl.text = sugerencia.argumentoMejorado;
+        if (articulos.any((a) => a.etiqueta == sugerencia.criterioSugerido)) {
+          _criterioSeleccionado = sugerencia.criterioSugerido;
+        }
+      });
+
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              sugerencia.esGeminiNube
+                  ? 'Punto medio sugerido con Gemini IA'
+                  : 'Punto medio sugerido con Enfoque Harvard',
+            ),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+    } finally {
+      if (mounted) {
+        setState(() => _mejorandoIa = false);
+      }
+    }
+  }
+
   Future<void> _mejorarArgumentoConIa() async {
     if (_mejorandoIa) return;
     setState(() => _mejorandoIa = true);
@@ -231,6 +284,35 @@ class _ModalContrapropuestaState extends State<_ModalContrapropuesta> {
                   ),
                   const SizedBox(height: 12),
                 ],
+                SizedBox(
+                  height: 40,
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.aiPrimary,
+                      backgroundColor: AppColors.aiBg,
+                      side: const BorderSide(color: AppColors.aiBorder),
+                    ),
+                    onPressed:
+                        _mejorandoIa ? null : _sugerirContrapropuestaConIa,
+                    icon: _mejorandoIa
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.auto_awesome_rounded, size: 16),
+                    label: Text(
+                      _mejorandoIa
+                          ? 'Calculando punto medio...'
+                          : 'Sugerir punto medio con IA',
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
                 TextFormField(
                   controller: _propuestaCtrl,
                   maxLines: 3,

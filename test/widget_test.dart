@@ -12,12 +12,14 @@ import 'package:acuerdo_vecinal/models/usuario_model.dart';
 import 'package:acuerdo_vecinal/providers/auth_provider.dart';
 import 'package:acuerdo_vecinal/providers/negociacion_provider.dart';
 import 'package:acuerdo_vecinal/providers/reglamento_provider.dart';
+import 'package:acuerdo_vecinal/screens/admin_dashboard_screen.dart';
 import 'package:acuerdo_vecinal/services/acta_pdf_service.dart';
 import 'package:acuerdo_vecinal/services/mediador_ia_service.dart';
 import 'package:acuerdo_vecinal/services/supabase_service.dart';
 import 'package:acuerdo_vecinal/widgets/signature_pad_widget.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // Valid 1x1 transparent PNG encoded in base64 for unit serialization tests.
@@ -865,6 +867,100 @@ void main() {
       expect(find.text('Iniciar Sesión'), findsOneWidget);
       expect(find.text('Configurar servidor (desarrollo)'), findsNothing);
       expect(find.text('Nube lista'), findsNothing);
+    });
+
+    test(
+        'MediadorIaService estructura caso completo y sugiere contrapropuesta local',
+        () async {
+      const ia = MediadorIaService();
+      final caso = await ia.estructurarCasoHarvard(
+        relatoUsuario:
+            'Mi vecino del 402 pone música muy fuerte en las noches y madrugo a trabajar.',
+        reglamento: kReglamentoInterno,
+        intentarNube: false,
+      );
+
+      expect(caso.esGeminiNube, isFalse);
+      expect(caso.categoria, 'Ruido');
+      expect(caso.titulo.length, greaterThanOrEqualTo(5));
+      expect(caso.descripcionProblema.length, greaterThanOrEqualTo(10));
+      expect(caso.interesSolicitante.length, greaterThanOrEqualTo(10));
+      expect(caso.descripcionPropuesta.length, greaterThanOrEqualTo(10));
+      expect(caso.argumentoPersuasivo.length, greaterThanOrEqualTo(15));
+      expect(caso.criterioObjetivo, contains('Art. 14'));
+
+      final contra = await ia.sugerirContrapropuestaHarvard(
+        tituloClausula: 'Horario nocturno',
+        propuestaActual: 'Silencio desde las 9:00 p.m.',
+        motivoRechazo: 'Trabajo hasta las 9:30 p.m. los viernes.',
+        categoria: 'Ruido',
+        reglamento: kReglamentoInterno,
+        interesPropio: 'Tocar música temprano el fin de semana',
+        interesContraparte: 'Descansar entre semana desde las 10 p.m.',
+        intentarNube: false,
+      );
+
+      expect(contra.nuevaPropuesta.length, greaterThanOrEqualTo(10));
+      expect(contra.argumentoMejorado.length, greaterThanOrEqualTo(15));
+      expect(contra.criterioSugerido, contains('Art. 14'));
+    });
+
+    testWidgets(
+        'AdminDashboardScreen muestra casos anónimos con identidad protegida',
+        (tester) async {
+      final auth = AuthProvider();
+      await tester.runAsync(auth.inicializar);
+      await tester.runAsync(
+        () => auth.entrarModoDemo(rolInicial: RolUsuario.vecino),
+      );
+
+      final negProvider = NegociacionProvider();
+      await tester.runAsync(negProvider.inicializar);
+      await tester.runAsync(
+        () => negProvider.crearNegociacion(
+          titulo: 'Mascota sin correa en ascensor',
+          categoria: 'Mascotas',
+          descripcionProblema:
+              'Se observó mascota sin correa en horario de alta circulación.',
+          esAnonimo: true,
+          interesSolicitante:
+              'Evitar incidentes y mantener tranquilos a los niños.',
+          tituloClausulaInicial: 'Uso de correa',
+          descripcionPropuestaInicial:
+              'Mantener correa puesta en ascensor y pasadizos comunes.',
+          criterioObjetivoInicial: kReglamentoInterno[1].etiqueta,
+          argumentoPersuasivoInicial:
+              'Cuida la seguridad de todas las familias y también de la mascota.',
+        ),
+      );
+
+      await tester.runAsync(() => auth.cambiarVistaAdminDemo(true));
+
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<AuthProvider>.value(value: auth),
+            ChangeNotifierProvider<ReglamentoProvider>(
+              create: (_) => ReglamentoProvider(),
+            ),
+            ChangeNotifierProvider<NegociacionProvider>.value(
+              value: negProvider,
+            ),
+          ],
+          child: const MaterialApp(home: AdminDashboardScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Acuerdos'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(ChoiceChip, 'Anónimos'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Mascota sin correa en ascensor'), findsOneWidget);
+      expect(find.text('Anónimo • Identidad protegida'), findsOneWidget);
+      expect(find.textContaining('Vecino Anónimo ↔ Dpto. 402'), findsOneWidget);
     });
   });
 }

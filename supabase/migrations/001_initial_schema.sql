@@ -380,10 +380,7 @@ create policy "negociaciones_select_partes_o_admin"
       or receptor_id = auth.uid()
       or lower(dpto_solicitante) = lower(public.mi_departamento())
       or lower(dpto_receptor) = lower(public.mi_departamento())
-      or (
-        public.es_admin_de_condominio(condominio_id)
-        and (estado_general = 'formalizada' or es_anonimo = false)
-      )
+      or public.es_admin_de_condominio(condominio_id)
     )
   );
 

@@ -19,6 +19,48 @@ class SugerenciaArgumentoIa {
   final bool esGeminiNube;
 }
 
+/// Complete structured Harvard-method negotiation fields generated from natural complaint text.
+class CasoEstructuradoIa {
+  const CasoEstructuradoIa({
+    required this.titulo,
+    required this.categoria,
+    required this.descripcionProblema,
+    required this.interesSolicitante,
+    required this.tituloClausula,
+    required this.descripcionPropuesta,
+    required this.criterioObjetivo,
+    required this.argumentoPersuasivo,
+    required this.esGeminiNube,
+  });
+
+  final String titulo;
+  final String categoria;
+  final String descripcionProblema;
+  final String interesSolicitante;
+  final String tituloClausula;
+  final String descripcionPropuesta;
+  final String criterioObjetivo;
+  final String argumentoPersuasivo;
+  final bool esGeminiNube;
+}
+
+/// Complete balanced counter-offer suggested by the AI Mediator.
+class ContrapropuestaSugeridaIa {
+  const ContrapropuestaSugeridaIa({
+    required this.nuevaPropuesta,
+    required this.criterioSugerido,
+    required this.argumentoMejorado,
+    required this.explicacionBreve,
+    required this.esGeminiNube,
+  });
+
+  final String nuevaPropuesta;
+  final String criterioSugerido;
+  final String argumentoMejorado;
+  final String explicacionBreve;
+  final bool esGeminiNube;
+}
+
 /// Output returned by the Harvard AI Mediator chat assistant.
 class RespuestaMediadorIa {
   const RespuestaMediadorIa({
@@ -37,6 +79,124 @@ class MediadorIaService {
       : _supabase = supabaseService;
 
   final SupabaseService? _supabase;
+
+  /// Converts an everyday neighbor complaint into a structured Harvard case.
+  Future<CasoEstructuradoIa> estructurarCasoHarvard({
+    required String relatoUsuario,
+    required List<ArticuloReglamento> reglamento,
+    bool intentarNube = true,
+  }) async {
+    final articulos =
+        reglamento.isNotEmpty ? reglamento : kReglamentoInterno;
+    final relatoLimpio = relatoUsuario.trim();
+
+    if (intentarNube && (_supabase?.estaListo ?? false)) {
+      final data = await _supabase!.invocarMediadorIa({
+        'modo': 'estructurar_caso',
+        'relatoUsuario': relatoLimpio,
+        'categorias': kCategoriasConflicto,
+        'reglamentoTexto': reglamentoComoContextoTexto(articulos),
+      });
+
+      final titulo = (data?['titulo'] as String? ?? '').trim();
+      final desc = (data?['descripcionProblema'] as String? ?? '').trim();
+      final interes = (data?['interesSolicitante'] as String? ?? '').trim();
+      final clausula = (data?['tituloClausula'] as String? ?? '').trim();
+      final propuesta = (data?['descripcionPropuesta'] as String? ?? '').trim();
+      final argumento = (data?['argumentoPersuasivo'] as String? ?? '').trim();
+
+      if (titulo.length >= 5 &&
+          desc.length >= 10 &&
+          interes.length >= 10 &&
+          clausula.length >= 4 &&
+          propuesta.length >= 10 &&
+          argumento.length >= 15) {
+        final rawCat = (data?['categoria'] as String? ?? '').trim();
+        final catValida = kCategoriasConflicto.contains(rawCat)
+            ? rawCat
+            : _inferirCategoria(relatoLimpio);
+
+        final rawCrit = (data?['criterioObjetivo'] as String? ?? '').trim();
+        final critValido = articulos.any((a) => a.etiqueta == rawCrit)
+            ? rawCrit
+            : _seleccionarArticuloPorCategoria(catValida, articulos).etiqueta;
+
+        return CasoEstructuradoIa(
+          titulo: titulo,
+          categoria: catValida,
+          descripcionProblema: desc,
+          interesSolicitante: interes,
+          tituloClausula: clausula,
+          descripcionPropuesta: propuesta,
+          criterioObjetivo: critValido,
+          argumentoPersuasivo: argumento,
+          esGeminiNube: true,
+        );
+      }
+    }
+
+    return _estructurarCasoLocal(
+      relatoUsuario: relatoLimpio,
+      reglamento: articulos,
+    );
+  }
+
+  /// Generates a balanced middle-ground counter-offer (proposal + bylaw + argument).
+  Future<ContrapropuestaSugeridaIa> sugerirContrapropuestaHarvard({
+    required String tituloClausula,
+    required String propuestaActual,
+    String? motivoRechazo,
+    required String categoria,
+    required List<ArticuloReglamento> reglamento,
+    String interesPropio = '',
+    String interesContraparte = '',
+    bool intentarNube = true,
+  }) async {
+    final articulos =
+        reglamento.isNotEmpty ? reglamento : kReglamentoInterno;
+
+    if (intentarNube && (_supabase?.estaListo ?? false)) {
+      final data = await _supabase!.invocarMediadorIa({
+        'modo': 'sugerir_contrapropuesta',
+        'tituloClausula': tituloClausula.trim(),
+        'propuestaActual': propuestaActual.trim(),
+        'motivoRechazo': (motivoRechazo ?? '').trim(),
+        'categoria': categoria,
+        'interesPropio': interesPropio.trim(),
+        'interesContraparte': interesContraparte.trim(),
+        'reglamentoTexto': reglamentoComoContextoTexto(articulos),
+      });
+
+      final nuevaPropuesta = (data?['nuevaPropuesta'] as String? ?? '').trim();
+      final argumento = (data?['argumentoMejorado'] as String? ?? '').trim();
+      if (nuevaPropuesta.length >= 10 && argumento.length >= 15) {
+        final rawCrit = (data?['criterioSugerido'] as String? ?? '').trim();
+        final critValido = articulos.any((a) => a.etiqueta == rawCrit)
+            ? rawCrit
+            : _seleccionarArticuloPorCategoria(categoria, articulos).etiqueta;
+        return ContrapropuestaSugeridaIa(
+          nuevaPropuesta: nuevaPropuesta,
+          criterioSugerido: critValido,
+          argumentoMejorado: argumento,
+          explicacionBreve:
+              (data?['explicacionBreve'] as String? ?? '').trim().isNotEmpty
+                  ? (data!['explicacionBreve'] as String).trim()
+                  : 'Punto medio sugerido por Gemini IA.',
+          esGeminiNube: true,
+        );
+      }
+    }
+
+    return _sugerirContrapropuestaLocal(
+      tituloClausula: tituloClausula,
+      propuestaActual: propuestaActual,
+      motivoRechazo: motivoRechazo,
+      categoria: categoria,
+      reglamento: articulos,
+      interesPropio: interesPropio,
+      interesContraparte: interesContraparte,
+    );
+  }
 
   /// Enhances a persuasive argument and suggests the closest bylaw article.
   Future<SugerenciaArgumentoIa> mejorarArgumentoHarvard({
@@ -75,7 +235,7 @@ class MediadorIaService {
           explicacionBreve:
               (data?['explicacionBreve'] as String? ?? '').trim().isNotEmpty
                   ? (data!['explicacionBreve'] as String).trim()
-                  : 'Redactado por Gemini Flash con enfoque Harvard.',
+                  : 'Redactado por Gemini IA con enfoque Harvard.',
           esGeminiNube: true,
         );
       }
@@ -155,6 +315,141 @@ class MediadorIaService {
         consultaUsuario: consultaUsuario,
         reglamento: articulos,
       ),
+      esGeminiNube: false,
+    );
+  }
+
+  String _inferirCategoria(String texto) {
+    final lower = texto.toLowerCase();
+    if (lower.contains('ruido') ||
+        lower.contains('música') ||
+        lower.contains('musica') ||
+        lower.contains('volumen') ||
+        lower.contains('fiesta') ||
+        lower.contains('guitarra') ||
+        lower.contains('noche')) {
+      return 'Ruido';
+    }
+    if (lower.contains('mascota') ||
+        lower.contains('perro') ||
+        lower.contains('gato') ||
+        lower.contains('ladrido') ||
+        lower.contains('correa')) {
+      return 'Mascotas';
+    }
+    if (lower.contains('cochera') ||
+        lower.contains('estacionamiento') ||
+        lower.contains('auto') ||
+        lower.contains('camioneta') ||
+        lower.contains('carro')) {
+      return 'Cochera';
+    }
+    if (lower.contains('parrilla') ||
+        lower.contains('terraza') ||
+        lower.contains('ascensor') ||
+        lower.contains('pasadizo') ||
+        lower.contains('área') ||
+        lower.contains('area')) {
+      return 'Áreas Comunes';
+    }
+    return 'Otros';
+  }
+
+  CasoEstructuradoIa _estructurarCasoLocal({
+    required String relatoUsuario,
+    required List<ArticuloReglamento> reglamento,
+  }) {
+    final cat = _inferirCategoria(relatoUsuario);
+    final art = _seleccionarArticuloPorCategoria(cat, reglamento);
+
+    final String titulo;
+    final String interes;
+    final String clausula;
+    final String propuesta;
+
+    switch (cat) {
+      case 'Ruido':
+        titulo = 'Coordinación de horarios y niveles de ruido';
+        interes =
+            'Proteger el descanso nocturno y el bienestar en el hogar sin impedir actividades diurnas.';
+        clausula = 'Franja de silencio entre semana y fines de semana';
+        propuesta =
+            'Mantener un volumen moderado desde las 10:00 p.m. de domingo a jueves y acordar un horario tope los fines de semana.';
+      case 'Mascotas':
+        titulo = 'Convivencia responsable con mascotas';
+        interes =
+            'Garantizar la seguridad de los residentes y el cuidado tranquilo de las mascotas en el edificio.';
+        clausula = 'Uso de correa y control en zonas compartidas';
+        propuesta =
+            'Transitar con correa en ascensores y pasadizos comunes y evitar permanencia prolongada en balcones durante la noche.';
+      case 'Cochera':
+        titulo = 'Uso ordenado de límites en estacionamiento';
+        interes =
+            'Facilitar el ingreso, salida y apertura segura de puertas de ambos vehículos.';
+        clausula = 'Estacionamiento centrado dentro de las líneas';
+        propuesta =
+            'Alinear ambos vehículos dejando margen suficiente respecto a la línea divisoria para permitir el ascenso cómodo.';
+      case 'Áreas Comunes':
+        titulo = 'Uso compartido de áreas comunes';
+        interes =
+            'Disfrutar de los espacios compartidos con orden, limpieza y respeto a todos los vecinos.';
+        clausula = 'Reserva previa y horario de cierre de espacio común';
+        propuesta =
+            'Coordinar reserva anticipada y entregar el área limpia y en silencio antes de las 11:00 p.m.';
+      default:
+        titulo = 'Acuerdo preventivo de buena convivencia';
+        interes =
+            'Resolver el incidente de manera oportuna cuidando la tranquilidad y el respeto mutuo entre departamentos.';
+        clausula = 'Compromiso de solución y seguimiento vecinal';
+        propuesta =
+            'Acordar medidas concretas y plazos claros para atender la situación dentro de los próximos 7 días.';
+    }
+
+    final descripcionBase = relatoUsuario.length >= 12
+        ? 'Situación reportada de manera objetiva: ${_asegurarPuntoFinal(relatoUsuario)} Se busca canalizar una solución pacífica mediante diálogo estructurado.'
+        : 'Situación vecinal vinculada a $cat que requiere definir acuerdos claros entre ambas viviendas.';
+
+    return CasoEstructuradoIa(
+      titulo: titulo,
+      categoria: cat,
+      descripcionProblema: descripcionBase,
+      interesSolicitante: interes,
+      tituloClausula: clausula,
+      descripcionPropuesta: propuesta,
+      criterioObjetivo: art.etiqueta,
+      argumentoPersuasivo:
+          'Esta propuesta protege las necesidades de ambos hogares mediante reglas claras respaldadas en ${art.etiqueta}, evitando multas o tensiones vecinales.',
+      esGeminiNube: false,
+    );
+  }
+
+  ContrapropuestaSugeridaIa _sugerirContrapropuestaLocal({
+    required String tituloClausula,
+    required String propuestaActual,
+    String? motivoRechazo,
+    required String categoria,
+    required List<ArticuloReglamento> reglamento,
+    required String interesPropio,
+    required String interesContraparte,
+  }) {
+    final art = _seleccionarArticuloPorCategoria(categoria, reglamento);
+    final motivoLimpio = (motivoRechazo ?? '').trim();
+
+    final nuevaPropuesta = motivoLimpio.isNotEmpty
+        ? 'Ajustar "$tituloClausula" contemplando la observación ("${_acortar(motivoLimpio, 55)}") con horarios definidos de común acuerdo y revisión a los 15 días.'
+        : 'Aplicar "$tituloClausula" de forma gradual y flexible: respetar el criterio base entre semana y habilitar margen acordado los fines de semana.';
+
+    final argumento = (interesPropio.trim().isNotEmpty &&
+            interesContraparte.trim().isNotEmpty)
+        ? 'Esta alternativa equilibra "${_acortar(interesPropio, 50)}" con "${_acortar(interesContraparte, 50)}", tomando como marco neutral ${art.etiqueta}.'
+        : 'Busca un punto de encuentro práctico que recoge las inquietudes planteadas y se apoya en ${art.etiqueta} para beneficio mutuo.';
+
+    return ContrapropuestaSugeridaIa(
+      nuevaPropuesta: nuevaPropuesta,
+      criterioSugerido: art.etiqueta,
+      argumentoMejorado: argumento,
+      explicacionBreve:
+          'Integra el reparo anterior y las necesidades de ambas viviendas.',
       esGeminiNube: false,
     );
   }
@@ -250,7 +545,7 @@ class MediadorIaService {
       return 'Propuesta constructiva sugerida para "$foco":\n'
           '"Comprendo tu necesidad de mantener tu rutina y propongo acordar horarios claros respaldados en ${articulo.etiqueta}, '
           'de modo que ambos hogares ganemos tranquilidad sin llegar a sanciones."\n\n'
-          'Tip: puedes usar el botón "Mejorar con IA" al contraofertar para insertarlo directo.';
+          'Tip: puedes usar el botón "Sugerir punto medio con IA" al contraofertar para insertarlo directo.';
     }
 
     final intSol = negociacion.interesSolicitante.trim().isNotEmpty

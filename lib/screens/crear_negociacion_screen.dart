@@ -7,6 +7,7 @@ import '../models/usuario_model.dart';
 import '../providers/auth_provider.dart';
 import '../providers/negociacion_provider.dart';
 import '../providers/reglamento_provider.dart';
+import '../services/mediador_ia_service.dart';
 import '../widgets/selector_campo_modal.dart';
 import 'mesa_negociacion_screen.dart';
 
@@ -117,6 +118,54 @@ class _CrearNegociacionScreenState extends State<CrearNegociacionScreen> {
     }
   }
 
+  Future<void> _abrirAsistenteCasoIa(
+    List<ArticuloReglamento> articulos,
+  ) async {
+    final provider = context.read<NegociacionProvider>();
+    final estructurado = await showModalBottomSheet<CasoEstructuradoIa>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => _ModalEstructurarCasoIa(
+        mediadorIa: provider.mediadorIa,
+        articulos: articulos,
+        esModoNube: provider.esModoNube,
+      ),
+    );
+
+    if (estructurado == null || !mounted) return;
+    setState(() {
+      _tituloCtrl.text = estructurado.titulo;
+      _categoria = estructurado.categoria;
+      _descripcionCtrl.text = estructurado.descripcionProblema;
+      _interesCtrl.text = estructurado.interesSolicitante;
+      _clausulaCtrl.text = estructurado.tituloClausula;
+      _propuestaCtrl.text = estructurado.descripcionPropuesta;
+      _criterioObjetivo = articulos.any(
+        (a) => a.etiqueta == estructurado.criterioObjetivo,
+      )
+          ? estructurado.criterioObjetivo
+          : articulos.first.etiqueta;
+      _argumentoCtrl.text = estructurado.argumentoPersuasivo;
+    });
+
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            estructurado.esGeminiNube
+                ? 'Caso completo estructurado con Gemini IA'
+                : 'Caso completo estructurado con Enfoque Harvard',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+  }
+
   Future<void> _enviar() async {
     if (!_formKey.currentState!.validate() || _enviando) return;
     FocusManager.instance.primaryFocus?.unfocus();
@@ -172,7 +221,32 @@ class _CrearNegociacionScreenState extends State<CrearNegociacionScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Nueva Negociación'),
+        title: const Text(
+          'Nueva Negociación',
+          overflow: TextOverflow.ellipsis,
+        ),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 10, top: 8, bottom: 8),
+            child: FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.aiPrimary,
+                foregroundColor: Colors.white,
+                minimumSize: const Size(0, 36),
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+              ),
+              onPressed: () => _abrirAsistenteCasoIa(articulos),
+              icon: const Icon(Icons.auto_awesome_rounded, size: 15),
+              label: const Text(
+                'Con IA',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
+        ],
       ),
       body: Form(
         key: _formKey,
@@ -555,6 +629,160 @@ class _SeccionCard extends StatelessWidget {
             const SizedBox(height: 14),
             child,
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ModalEstructurarCasoIa extends StatefulWidget {
+  const _ModalEstructurarCasoIa({
+    required this.mediadorIa,
+    required this.articulos,
+    required this.esModoNube,
+  });
+
+  final MediadorIaService mediadorIa;
+  final List<ArticuloReglamento> articulos;
+  final bool esModoNube;
+
+  @override
+  State<_ModalEstructurarCasoIa> createState() =>
+      _ModalEstructurarCasoIaState();
+}
+
+class _ModalEstructurarCasoIaState extends State<_ModalEstructurarCasoIa> {
+  final _formKey = GlobalKey<FormState>();
+  final _relatoCtrl = TextEditingController();
+  bool _procesando = false;
+
+  @override
+  void dispose() {
+    _relatoCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _generar() async {
+    if (!_formKey.currentState!.validate() || _procesando) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+    setState(() => _procesando = true);
+
+    try {
+      final resultado = await widget.mediadorIa.estructurarCasoHarvard(
+        relatoUsuario: _relatoCtrl.text,
+        reglamento: widget.articulos,
+        intentarNube: widget.esModoNube,
+      );
+      if (mounted) {
+        Navigator.of(context).pop(resultado);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _procesando = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomInset),
+        child: SingleChildScrollView(
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.border,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                const Row(
+                  children: [
+                    Icon(
+                      Icons.auto_awesome_rounded,
+                      size: 20,
+                      color: AppColors.aiPrimary,
+                    ),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Estructurar caso con IA',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Describe qué está pasando con tus propias palabras. La IA lo transformará en una solicitud respetuosa bajo el Método Harvard.',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: AppColors.textSecondary,
+                    height: 1.35,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                TextFormField(
+                  controller: _relatoCtrl,
+                  maxLines: 4,
+                  autofocus: true,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: const InputDecoration(
+                    labelText: '¿Qué problema vecinal quieres resolver?',
+                    hintText:
+                        'Ej. Mi vecino pone música muy fuerte después de las 11 p.m. y me cuesta madrugar al trabajo.',
+                  ),
+                  validator: (v) {
+                    if (v == null || v.trim().length < 10) {
+                      return 'Cuéntame un poco más (mín. 10 caracteres).';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  height: 48,
+                  child: FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.aiPrimary,
+                    ),
+                    onPressed: _procesando ? null : _generar,
+                    icon: _procesando
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.auto_awesome_rounded, size: 18),
+                    label: Text(
+                      _procesando
+                          ? 'Estructurando caso...'
+                          : 'Estructurar todo el caso',
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

@@ -407,21 +407,41 @@ class _TabCondominio extends StatelessWidget {
   }
 }
 
-class _TabAcuerdosAdmin extends StatelessWidget {
+class _TabAcuerdosAdmin extends StatefulWidget {
   const _TabAcuerdosAdmin({required this.negociaciones});
 
   final NegociacionProvider negociaciones;
 
   @override
+  State<_TabAcuerdosAdmin> createState() => _TabAcuerdosAdminState();
+}
+
+class _TabAcuerdosAdminState extends State<_TabAcuerdosAdmin> {
+  String _filtro = 'Todos';
+
+  @override
   Widget build(BuildContext context) {
-    final todas = negociaciones.negociaciones;
+    final todas = widget.negociaciones.negociaciones;
     final enCurso = todas
         .where((n) => n.estadoGeneral == EstadoNegociacion.enNegociacion)
         .length;
     final porFirmar = todas
         .where((n) => n.estadoGeneral == EstadoNegociacion.listoParaFirmar)
         .length;
-    final formalizados = negociaciones.formalizados;
+    final formalizados = widget.negociaciones.formalizados;
+
+    final filtradas = todas.where((n) {
+      switch (_filtro) {
+        case 'Activos':
+          return !n.estaFormalizada;
+        case 'Formalizados':
+          return n.estaFormalizada;
+        case 'Anónimos':
+          return n.esAnonimo;
+        default:
+          return true;
+      }
+    }).toList();
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -456,28 +476,79 @@ class _TabAcuerdosAdmin extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 16),
-        const Text(
-          'Actas Formalizadas y Casos Visibles',
-          style: TextStyle(
+        const SizedBox(height: 14),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppColors.adminBg,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.adminBorder),
+          ),
+          child: const Row(
+            children: [
+              Icon(
+                Icons.privacy_tip_outlined,
+                size: 18,
+                color: AppColors.adminPrimary,
+              ),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Supervisión administrativa: los casos anónimos son visibles para seguimiento manteniendo oculto el departamento solicitante.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textPrimary,
+                    height: 1.35,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              for (final opcion in const [
+                'Todos',
+                'Activos',
+                'Formalizados',
+                'Anónimos',
+              ]) ...[
+                ChoiceChip(
+                  label: Text(opcion),
+                  selected: _filtro == opcion,
+                  onSelected: (_) => setState(() => _filtro = opcion),
+                  visualDensity: VisualDensity.compact,
+                ),
+                const SizedBox(width: 8),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          'Negociaciones del condominio (${filtradas.length})',
+          style: const TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.w700,
             color: AppColors.textPrimary,
           ),
         ),
         const SizedBox(height: 8),
-        if (todas.isEmpty)
+        if (filtradas.isEmpty)
           const Card(
             child: Padding(
               padding: EdgeInsets.all(16),
               child: Text(
-                'Los casos anónimos permanecen privados entre las partes hasta su formalización.',
+                'No hay negociaciones en esta vista.',
                 style: TextStyle(color: AppColors.textSecondary, height: 1.35),
               ),
             ),
           )
         else
-          for (final item in todas) ...[
+          for (final item in filtradas) ...[
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(14),
@@ -501,12 +572,44 @@ class _TabAcuerdosAdmin extends StatelessWidget {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      '${item.dptoSolicitante} ↔ ${item.dptoReceptor}  •  ${item.categoria}',
+                      '${item.nombreVisiblePara(item.dptoSolicitante, 'Administración')} ↔ ${item.dptoReceptor}  •  ${item.categoria}',
                       style: const TextStyle(
                         fontSize: 12.5,
                         color: AppColors.textSecondary,
                       ),
                     ),
+                    if (item.esAnonimo) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.argumentBg,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.visibility_off_outlined,
+                              size: 13,
+                              color: AppColors.textSecondary,
+                            ),
+                            SizedBox(width: 5),
+                            Text(
+                              'Anónimo • Identidad protegida',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     if (item.estaFormalizada) ...[
                       const SizedBox(height: 8),
                       OutlinedButton.icon(
@@ -521,7 +624,10 @@ class _TabAcuerdosAdmin extends StatelessWidget {
                             ),
                           );
                         },
-                        icon: const Icon(Icons.picture_as_pdf_outlined, size: 17),
+                        icon: const Icon(
+                          Icons.picture_as_pdf_outlined,
+                          size: 17,
+                        ),
                         label: Text('Ver Acta (${item.codigoActa ?? 'PDF'})'),
                       ),
                     ],
