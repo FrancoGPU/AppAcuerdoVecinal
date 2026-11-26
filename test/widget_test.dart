@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:acuerdo_vecinal/core/config/supabase_config.dart';
 import 'package:acuerdo_vecinal/core/constants/reglamento_data.dart';
 import 'package:acuerdo_vecinal/main.dart';
 import 'package:acuerdo_vecinal/models/condicion_model.dart';
@@ -13,6 +14,7 @@ import 'package:acuerdo_vecinal/providers/negociacion_provider.dart';
 import 'package:acuerdo_vecinal/providers/reglamento_provider.dart';
 import 'package:acuerdo_vecinal/services/acta_pdf_service.dart';
 import 'package:acuerdo_vecinal/services/mediador_ia_service.dart';
+import 'package:acuerdo_vecinal/services/supabase_service.dart';
 import 'package:acuerdo_vecinal/widgets/signature_pad_widget.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -791,6 +793,21 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.textContaining('Análisis Harvard'), findsOneWidget);
+    });
+
+    test('SupabaseService inicializa cliente con flujo implícito sin PKCE nulo',
+        () async {
+      final service = SupabaseService();
+      await service.inicializar(
+        const SupabaseRuntimeConfig(
+          url: 'https://demo-project.supabase.co',
+          anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.dummy-anon-key',
+        ),
+      );
+      expect(service.estaListo, isTrue);
+      expect(service.configActual?.isConfigured, isTrue);
+      await service.inicializar(null);
+      expect(service.estaListo, isFalse);
     });
   });
 }

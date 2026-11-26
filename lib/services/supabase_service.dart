@@ -52,6 +52,9 @@ class SupabaseService {
     _client = SupabaseClient(
       config.url.trim(),
       config.anonKey.trim(),
+      authOptions: const AuthClientOptions(
+        authFlowType: AuthFlowType.implicit,
+      ),
     );
   }
 
@@ -539,8 +542,15 @@ class SupabaseService {
             : throw const CloudBackendException(
                 'Respuesta inesperada del servidor.',
               );
-    final perfilMap = Map<String, dynamic>.from(map['perfil'] as Map);
-    final condominioMap = Map<String, dynamic>.from(map['condominio'] as Map);
+    final rawPerfil = map['perfil'];
+    final rawCondominio = map['condominio'];
+    if (rawPerfil is! Map || rawCondominio is! Map) {
+      throw const CloudBackendException(
+        'Faltan datos de perfil o condominio en la respuesta del servidor.',
+      );
+    }
+    final perfilMap = Map<String, dynamic>.from(rawPerfil);
+    final condominioMap = Map<String, dynamic>.from(rawCondominio);
     return SesionCondominio(
       perfil: PerfilUsuario.fromSupabaseMap(perfilMap),
       condominio: CondominioModel.fromSupabaseMap(condominioMap),
