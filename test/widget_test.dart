@@ -852,5 +852,19 @@ void main() {
         findsOneWidget,
       );
     });
+
+    testWidgets(
+        'AuthScreen oculta configuración de servidor cuando está compilado para producción',
+        (tester) async {
+      final authProd = AuthProvider(configuradoPorEntornoOverride: true);
+      await tester.runAsync(authProd.inicializar);
+
+      await tester.pumpWidget(AcuerdoVecinalApp(authOverride: authProd));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Iniciar Sesión'), findsOneWidget);
+      expect(find.text('Configurar servidor (desarrollo)'), findsNothing);
+      expect(find.text('Nube lista'), findsNothing);
+    });
   });
 }

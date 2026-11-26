@@ -5,7 +5,7 @@ import '../core/theme/app_theme.dart';
 import '../models/usuario_model.dart';
 import '../providers/auth_provider.dart';
 
-/// Polished Authentication, Condominium onboarding (Admin vs Neighbor), and Demo entry screen.
+/// Centered, symmetric Authentication, Condominium onboarding, and Demo screen.
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
 
@@ -109,331 +109,306 @@ class _AuthScreenState extends State<AuthScreen> {
     final auth = context.watch<AuthProvider>();
 
     return Scaffold(
-      backgroundColor: AppColors.background,
-      body: ListView(
-        padding: EdgeInsets.zero,
-        children: [
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.fromLTRB(22, 44, 22, 54),
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Color(0xFF0B1120),
-                      AppColors.heroBlue,
-                      AppColors.primary,
-                    ],
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.14),
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.22),
-                            ),
-                          ),
-                          child: const Icon(
-                            Icons.handshake_rounded,
-                            color: Colors.white,
-                            size: 24,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'AcuerdoVecinal',
-                                style: TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: -0.3,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              Text(
-                                'Mediación vecinal Método Harvard',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.white.withValues(alpha: 0.78),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        InkWell(
-                          borderRadius: BorderRadius.circular(20),
-                          onTap: () => _abrirConfiguracionSupabase(auth),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.22),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: auth.supabaseConfigurado
-                                    ? const Color(0xFF34D399)
-                                        .withValues(alpha: 0.65)
-                                    : Colors.white.withValues(alpha: 0.28),
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  auth.supabaseConfigurado
-                                      ? Icons.circle
-                                      : Icons.settings_outlined,
-                                  size: auth.supabaseConfigurado ? 8 : 13,
-                                  color: auth.supabaseConfigurado
-                                      ? const Color(0xFF34D399)
-                                      : Colors.white,
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  auth.supabaseConfigurado
-                                      ? 'Nube lista'
-                                      : 'Configurar nube',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      _tabIndex == 0
-                          ? 'Ingresa con tu cuenta para negociar acuerdos en tiempo real y emitir Actas PDF.'
-                          : 'Únete con el código de tu condominio o registra tu edificio como Administrador.',
-                      style: TextStyle(
-                        fontSize: 13,
-                        height: 1.4,
-                        color: Colors.white.withValues(alpha: 0.88),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Positioned(
-                right: -28,
-                top: -20,
-                child: IgnorePointer(
-                  child: Container(
-                    width: 120,
-                    height: 120,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.white.withValues(alpha: 0.06),
-                    ),
-                  ),
-                ),
-              ),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFFEEF4FF),
+              AppColors.background,
+              AppColors.background,
             ],
+            stops: [0.0, 0.36, 1.0],
           ),
-          Transform.translate(
-            offset: const Offset(0, -28),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(18),
-                    decoration: BoxDecoration(
-                      color: AppColors.surface,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: AppColors.border),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.06),
-                          blurRadius: 20,
-                          offset: const Offset(0, 8),
-                        ),
-                      ],
+        ),
+        child: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 24,
+                ),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minHeight: (constraints.maxHeight - 48).clamp(
+                      0.0,
+                      double.infinity,
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        if (auth.error != null) ...[
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: AppColors.rejectedBg,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: AppColors.rejectedBtn
-                                    .withValues(alpha: 0.35),
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(
-                                  Icons.error_outline_rounded,
-                                  size: 18,
-                                  color: AppColors.rejectedText,
+                  ),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 420),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Center(
+                            child: Container(
+                              width: 56,
+                              height: 56,
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [
+                                    AppColors.heroBlue,
+                                    AppColors.primary,
+                                  ],
                                 ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    auth.error!,
-                                    style: const TextStyle(
-                                      fontSize: 12.5,
-                                      color: AppColors.rejectedText,
-                                      fontWeight: FontWeight.w500,
-                                    ),
+                                borderRadius: BorderRadius.circular(16),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color:
+                                        AppColors.primary.withValues(alpha: 0.28),
+                                    blurRadius: 16,
+                                    offset: const Offset(0, 6),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
+                              child: const Icon(
+                                Icons.handshake_rounded,
+                                color: Colors.white,
+                                size: 28,
+                              ),
                             ),
                           ),
                           const SizedBox(height: 14),
-                        ],
-                        Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            color: AppColors.argumentBg,
-                            borderRadius: BorderRadius.circular(12),
+                          const Text(
+                            'AcuerdoVecinal',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 26,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.6,
+                              color: AppColors.textPrimary,
+                            ),
                           ),
-                          child: Row(
+                          const SizedBox(height: 4),
+                          const Text(
+                            'Mediación vecinal • Método Harvard',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          Container(
+                            padding: const EdgeInsets.all(22),
+                            decoration: BoxDecoration(
+                              color: AppColors.surface,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: AppColors.border),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.05),
+                                  blurRadius: 24,
+                                  offset: const Offset(0, 10),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                if (auth.error != null) ...[
+                                  Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.rejectedBg,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: AppColors.rejectedBtn
+                                            .withValues(alpha: 0.35),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.error_outline_rounded,
+                                          size: 18,
+                                          color: AppColors.rejectedText,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            auth.error!,
+                                            style: const TextStyle(
+                                              fontSize: 12.5,
+                                              color: AppColors.rejectedText,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                ],
+                                Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.argumentBg,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: _SegmentedTabButton(
+                                          label: 'Ingresar',
+                                          selected: _tabIndex == 0,
+                                          onTap: () {
+                                            auth.limpiarError();
+                                            setState(() => _tabIndex = 0);
+                                          },
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Expanded(
+                                        child: _SegmentedTabButton(
+                                          label: 'Crear cuenta',
+                                          selected: _tabIndex == 1,
+                                          onTap: () {
+                                            auth.limpiarError();
+                                            setState(() => _tabIndex = 1);
+                                          },
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 20),
+                                if (_tabIndex == 0)
+                                  _buildLoginForm(auth)
+                                else
+                                  _buildRegisterForm(auth),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          Row(
                             children: [
-                              Expanded(
-                                child: _SegmentedTabButton(
-                                  label: 'Ingresar',
-                                  selected: _tabIndex == 0,
-                                  onTap: () {
-                                    auth.limpiarError();
-                                    setState(() => _tabIndex = 0);
-                                  },
+                              const Expanded(child: Divider()),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                ),
+                                child: Text(
+                                  'Modo demostración offline',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textSecondary
+                                        .withValues(alpha: 0.9),
+                                  ),
                                 ),
                               ),
-                              const SizedBox(width: 4),
+                              const Expanded(child: Divider()),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
                               Expanded(
-                                child: _SegmentedTabButton(
-                                  label: 'Crear cuenta',
-                                  selected: _tabIndex == 1,
-                                  onTap: () {
-                                    auth.limpiarError();
-                                    setState(() => _tabIndex = 1);
-                                  },
+                                child: OutlinedButton.icon(
+                                  style: OutlinedButton.styleFrom(
+                                    backgroundColor: AppColors.surface,
+                                    foregroundColor: AppColors.primary,
+                                    side: BorderSide(
+                                      color: AppColors.primary
+                                          .withValues(alpha: 0.35),
+                                    ),
+                                    minimumSize: const Size(0, 44),
+                                  ),
+                                  onPressed: auth.cargando
+                                      ? null
+                                      : () => auth.entrarModoDemo(
+                                            rolInicial: RolUsuario.vecino,
+                                          ),
+                                  icon: const Icon(
+                                    Icons.person_outline_rounded,
+                                    size: 18,
+                                  ),
+                                  label: const Text('Demo Vecino'),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  style: OutlinedButton.styleFrom(
+                                    backgroundColor: AppColors.surface,
+                                    foregroundColor: AppColors.adminPrimary,
+                                    side: BorderSide(
+                                      color: AppColors.adminPrimary
+                                          .withValues(alpha: 0.4),
+                                    ),
+                                    minimumSize: const Size(0, 44),
+                                  ),
+                                  onPressed: auth.cargando
+                                      ? null
+                                      : () => auth.entrarModoDemo(
+                                            rolInicial:
+                                                RolUsuario.administrador,
+                                          ),
+                                  icon: const Icon(
+                                    Icons.admin_panel_settings_outlined,
+                                    size: 18,
+                                  ),
+                                  label: const Text('Demo Admin'),
                                 ),
                               ),
                             ],
                           ),
-                        ),
-                        const SizedBox(height: 18),
-                        if (_tabIndex == 0)
-                          _buildLoginForm(auth)
-                        else
-                          _buildRegisterForm(auth),
-                      ],
+                          if (!auth.configuradoPorEntorno) ...[
+                            const SizedBox(height: 10),
+                            Center(
+                              child: TextButton.icon(
+                                style: TextButton.styleFrom(
+                                  foregroundColor: AppColors.textSecondary,
+                                  minimumSize: const Size(0, 34),
+                                ),
+                                onPressed: () =>
+                                    _abrirConfiguracionSupabase(auth),
+                                icon: const Icon(
+                                  Icons.settings_outlined,
+                                  size: 15,
+                                ),
+                                label: Text(
+                                  auth.supabaseConfigurado
+                                      ? 'Cambiar servidor (desarrollo)'
+                                      : 'Configurar servidor (desarrollo)',
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 18),
-                  Row(
-                    children: [
-                      const Expanded(child: Divider()),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
-                        child: Text(
-                          '¿Quieres probar sin cuenta?',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textSecondary.withValues(alpha: 0.9),
-                          ),
-                        ),
-                      ),
-                      const Expanded(child: Divider()),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          style: OutlinedButton.styleFrom(
-                            backgroundColor: AppColors.surface,
-                            foregroundColor: AppColors.primary,
-                            side: BorderSide(
-                              color: AppColors.primary.withValues(alpha: 0.35),
-                            ),
-                            minimumSize: const Size(0, 44),
-                          ),
-                          onPressed: auth.cargando
-                              ? null
-                              : () => auth.entrarModoDemo(
-                                    rolInicial: RolUsuario.vecino,
-                                  ),
-                          icon: const Icon(
-                            Icons.person_outline_rounded,
-                            size: 18,
-                          ),
-                          label: const Text('Demo Vecino'),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          style: OutlinedButton.styleFrom(
-                            backgroundColor: AppColors.surface,
-                            foregroundColor: AppColors.adminPrimary,
-                            side: BorderSide(
-                              color:
-                                  AppColors.adminPrimary.withValues(alpha: 0.4),
-                            ),
-                            minimumSize: const Size(0, 44),
-                          ),
-                          onPressed: auth.cargando
-                              ? null
-                              : () => auth.entrarModoDemo(
-                                    rolInicial: RolUsuario.administrador,
-                                  ),
-                          icon: const Icon(
-                            Icons.admin_panel_settings_outlined,
-                            size: 18,
-                          ),
-                          label: const Text('Demo Admin'),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  const Text(
-                    'Modo Demo Local funciona offline directo en tu dispositivo.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+                ),
+              );
+            },
           ),
-        ],
+        ),
       ),
+    );
+  }
+
+  InputDecoration _campoDecoration({
+    required String label,
+    String? hint,
+    required IconData icon,
+    Widget? suffix,
+  }) {
+    return InputDecoration(
+      labelText: label,
+      hintText: hint,
+      fillColor: AppColors.background,
+      prefixIcon: Icon(icon, size: 19, color: AppColors.textSecondary),
+      suffixIcon: suffix,
     );
   }
 
@@ -446,10 +421,10 @@ class _AuthScreenState extends State<AuthScreen> {
           TextFormField(
             controller: _loginEmailCtrl,
             keyboardType: TextInputType.emailAddress,
-            decoration: const InputDecoration(
-              labelText: 'Correo electrónico',
-              hintText: 'vecino@condominio.com',
-              prefixIcon: Icon(Icons.email_outlined, size: 19),
+            decoration: _campoDecoration(
+              label: 'Correo electrónico',
+              hint: 'vecino@condominio.com',
+              icon: Icons.email_outlined,
             ),
             validator: (v) {
               if (v == null || !v.contains('@')) {
@@ -462,10 +437,10 @@ class _AuthScreenState extends State<AuthScreen> {
           TextFormField(
             controller: _loginPassCtrl,
             obscureText: !_verPassword,
-            decoration: InputDecoration(
-              labelText: 'Contraseña',
-              prefixIcon: const Icon(Icons.lock_outline_rounded, size: 19),
-              suffixIcon: IconButton(
+            decoration: _campoDecoration(
+              label: 'Contraseña',
+              icon: Icons.lock_outline_rounded,
+              suffix: IconButton(
                 icon: Icon(
                   _verPassword
                       ? Icons.visibility_off_outlined
@@ -483,14 +458,17 @@ class _AuthScreenState extends State<AuthScreen> {
             },
           ),
           const SizedBox(height: 18),
-          FilledButton(
-            onPressed: auth.cargando ? null : () => _enviarLogin(auth),
-            child: Text(
-              auth.cargando
-                  ? 'Ingresando...'
-                  : auth.supabaseConfigurado
-                      ? 'Iniciar Sesión'
-                      : 'Conectar Supabase e Ingresar',
+          SizedBox(
+            height: 50,
+            child: FilledButton(
+              onPressed: auth.cargando ? null : () => _enviarLogin(auth),
+              child: Text(
+                auth.cargando
+                    ? 'Ingresando...'
+                    : auth.supabaseConfigurado
+                        ? 'Iniciar Sesión'
+                        : 'Conectar Supabase e Ingresar',
+              ),
             ),
           ),
         ],
@@ -505,22 +483,13 @@ class _AuthScreenState extends State<AuthScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
-            'Elige tu perfil',
-            style: TextStyle(
-              fontSize: 12.5,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 8),
           Row(
             children: [
               Expanded(
                 child: _RolSelectorCard(
                   icon: Icons.apartment_rounded,
                   title: 'Vecino',
-                  subtitle: 'Tengo código',
+                  subtitle: 'Con código',
                   selected: !esAdmin,
                   activeColor: AppColors.primary,
                   activeBg: AppColors.formalizedBg,
@@ -533,7 +502,7 @@ class _AuthScreenState extends State<AuthScreen> {
                 child: _RolSelectorCard(
                   icon: Icons.admin_panel_settings_outlined,
                   title: 'Administrador',
-                  subtitle: 'Creo edificio',
+                  subtitle: 'Nuevo edificio',
                   selected: esAdmin,
                   activeColor: AppColors.adminPrimary,
                   activeBg: AppColors.adminBg,
@@ -547,10 +516,10 @@ class _AuthScreenState extends State<AuthScreen> {
           TextFormField(
             controller: _regNombreCtrl,
             textCapitalization: TextCapitalization.words,
-            decoration: const InputDecoration(
-              labelText: 'Nombre completo',
-              hintText: 'Ej. Franco García',
-              prefixIcon: Icon(Icons.person_outline_rounded, size: 19),
+            decoration: _campoDecoration(
+              label: 'Nombre completo',
+              hint: 'Ej. Franco García',
+              icon: Icons.person_outline_rounded,
             ),
             validator: (v) {
               if (v == null || v.trim().length < 3) {
@@ -563,9 +532,9 @@ class _AuthScreenState extends State<AuthScreen> {
           TextFormField(
             controller: _regEmailCtrl,
             keyboardType: TextInputType.emailAddress,
-            decoration: const InputDecoration(
-              labelText: 'Correo electrónico',
-              prefixIcon: Icon(Icons.email_outlined, size: 19),
+            decoration: _campoDecoration(
+              label: 'Correo electrónico',
+              icon: Icons.email_outlined,
             ),
             validator: (v) {
               if (v == null || !v.contains('@')) {
@@ -578,10 +547,10 @@ class _AuthScreenState extends State<AuthScreen> {
           TextFormField(
             controller: _regPassCtrl,
             obscureText: !_verPassword,
-            decoration: InputDecoration(
-              labelText: 'Contraseña',
-              prefixIcon: const Icon(Icons.lock_outline_rounded, size: 19),
-              suffixIcon: IconButton(
+            decoration: _campoDecoration(
+              label: 'Contraseña',
+              icon: Icons.lock_outline_rounded,
+              suffix: IconButton(
                 icon: Icon(
                   _verPassword
                       ? Icons.visibility_off_outlined
@@ -603,10 +572,10 @@ class _AuthScreenState extends State<AuthScreen> {
             TextFormField(
               controller: _regCodigoCtrl,
               textCapitalization: TextCapitalization.characters,
-              decoration: const InputDecoration(
-                labelText: 'Código del condominio',
-                hintText: 'Ej. AV-4821',
-                prefixIcon: Icon(Icons.key_rounded, size: 19),
+              decoration: _campoDecoration(
+                label: 'Código del condominio',
+                hint: 'Ej. AV-4821',
+                icon: Icons.key_rounded,
               ),
               validator: (v) {
                 if (v == null || v.trim().length < 4) {
@@ -619,10 +588,10 @@ class _AuthScreenState extends State<AuthScreen> {
             TextFormField(
               controller: _regDptoCtrl,
               textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(
-                labelText: 'Departamento o vivienda',
-                hintText: 'Ej. Dpto. 301',
-                prefixIcon: Icon(Icons.door_front_door_outlined, size: 19),
+              decoration: _campoDecoration(
+                label: 'Departamento o vivienda',
+                hint: 'Ej. Dpto. 301',
+                icon: Icons.door_front_door_outlined,
               ),
               validator: (v) {
                 if (v == null || v.trim().isEmpty) {
@@ -635,10 +604,10 @@ class _AuthScreenState extends State<AuthScreen> {
             TextFormField(
               controller: _regCondoNombreCtrl,
               textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(
-                labelText: 'Nombre del condominio o edificio',
-                hintText: 'Ej. Residencial Los Cedros',
-                prefixIcon: Icon(Icons.domain_rounded, size: 19),
+              decoration: _campoDecoration(
+                label: 'Nombre del condominio o edificio',
+                hint: 'Ej. Residencial Los Cedros',
+                icon: Icons.domain_rounded,
               ),
               validator: (v) {
                 if (v == null || v.trim().length < 3) {
@@ -651,25 +620,30 @@ class _AuthScreenState extends State<AuthScreen> {
             TextFormField(
               controller: _regCondoDirCtrl,
               textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(
-                labelText: 'Dirección (opcional)',
-                hintText: 'Ej. Av. Principal 420',
-                prefixIcon: Icon(Icons.location_on_outlined, size: 19),
+              decoration: _campoDecoration(
+                label: 'Dirección (opcional)',
+                hint: 'Ej. Av. Principal 420',
+                icon: Icons.location_on_outlined,
               ),
             ),
           ],
           const SizedBox(height: 18),
-          FilledButton(
-            style: esAdmin
-                ? FilledButton.styleFrom(backgroundColor: AppColors.adminPrimary)
-                : null,
-            onPressed: auth.cargando ? null : () => _enviarRegistro(auth),
-            child: Text(
-              auth.cargando
-                  ? 'Creando cuenta...'
-                  : esAdmin
-                      ? 'Crear Condominio y Cuenta Admin'
-                      : 'Unirme al Condominio',
+          SizedBox(
+            height: 50,
+            child: FilledButton(
+              style: esAdmin
+                  ? FilledButton.styleFrom(
+                      backgroundColor: AppColors.adminPrimary,
+                    )
+                  : null,
+              onPressed: auth.cargando ? null : () => _enviarRegistro(auth),
+              child: Text(
+                auth.cargando
+                    ? 'Creando cuenta...'
+                    : esAdmin
+                        ? 'Crear Condominio y Cuenta Admin'
+                        : 'Unirme al Condominio',
+              ),
             ),
           ),
         ],
@@ -744,7 +718,7 @@ class _RolSelectorCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
@@ -752,36 +726,33 @@ class _RolSelectorCard extends StatelessWidget {
               width: selected ? 1.5 : 1,
             ),
           ),
-          child: Row(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
                 icon,
-                size: 20,
+                size: 22,
                 color: selected ? activeColor : AppColors.textSecondary,
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: selected ? activeColor : AppColors.textPrimary,
-                      ),
-                    ),
-                    Text(
-                      subtitle,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
+              const SizedBox(height: 6),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: selected ? activeColor : AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: AppColors.textSecondary,
                 ),
               ),
             ],

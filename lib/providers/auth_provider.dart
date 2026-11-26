@@ -14,11 +14,14 @@ class AuthProvider extends ChangeNotifier {
   AuthProvider({
     SupabaseService? supabaseService,
     LocalStorageService? storageService,
+    bool? configuradoPorEntornoOverride,
   })  : _supabase = supabaseService ?? SupabaseService(),
-        _storage = storageService ?? LocalStorageService();
+        _storage = storageService ?? LocalStorageService(),
+        _envOverride = configuradoPorEntornoOverride;
 
   final SupabaseService _supabase;
   final LocalStorageService _storage;
+  final bool? _envOverride;
 
   PerfilUsuario? _usuarioActual;
   CondominioModel? _condominioActual;
@@ -48,7 +51,10 @@ class AuthProvider extends ChangeNotifier {
       !(_usuarioActual?.esModoDemo ?? true) &&
       _supabase.estaListo;
   bool get esAdministrador => _usuarioActual?.esAdmin ?? false;
-  bool get supabaseConfigurado => _configSupabase?.isConfigured ?? false;
+  bool get configuradoPorEntorno =>
+      _envOverride ?? (SupabaseRuntimeConfig.fromEnvironmentOrNull() != null);
+  bool get supabaseConfigurado =>
+      configuradoPorEntorno || (_configSupabase?.isConfigured ?? false);
 
   void limpiarError() {
     if (_error == null) return;
