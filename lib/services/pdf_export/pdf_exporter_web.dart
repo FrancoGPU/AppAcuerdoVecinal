@@ -20,6 +20,22 @@ Future<String> guardarPdfBytes({
   return 'Descargas del navegador ($fileName)';
 }
 
+Future<List<Uint8List>?> renderizarPdfPaginasNativas(Uint8List bytes) async =>
+    null;
+
+void abrirPdfEnNuevaPestana(Uint8List bytes, String fileName) {
+  final blob = web.Blob(
+    <JSUint8Array>[bytes.toJS].toJS,
+    web.BlobPropertyBag(type: 'application/pdf'),
+  );
+  final url = web.URL.createObjectURL(blob);
+  web.window.open(url, '_blank');
+  Future<void>.delayed(
+    const Duration(minutes: 1),
+    () => web.URL.revokeObjectURL(url),
+  );
+}
+
 void _descargarEnNavegador(Uint8List bytes, String fileName) {
   final blob = web.Blob(
     <JSUint8Array>[bytes.toJS].toJS,

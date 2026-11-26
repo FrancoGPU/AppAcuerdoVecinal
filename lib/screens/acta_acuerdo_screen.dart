@@ -11,6 +11,7 @@ import '../providers/negociacion_provider.dart';
 import '../services/acta_pdf_service.dart';
 import '../widgets/modal_firma_tactil.dart';
 import '../widgets/role_switcher_chip.dart';
+import 'acta_pdf_preview_screen.dart';
 
 /// Formal agreement summary, per-neighbor intentional signature modal, and PDF export.
 class ActaAcuerdoScreen extends StatefulWidget {
@@ -98,6 +99,20 @@ class _ActaAcuerdoScreenState extends State<ActaAcuerdoScreen> {
           ),
         );
     }
+  }
+
+  void _abrirPreviewPdf(
+    NegociacionModel negociacion, {
+    required String rolActivo,
+  }) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ActaPdfPreviewScreen(
+          negociacion: negociacion,
+          rolActivo: rolActivo,
+        ),
+      ),
+    );
   }
 
   Future<void> _guardarPdf(
@@ -214,17 +229,12 @@ class _ActaAcuerdoScreenState extends State<ActaAcuerdoScreen> {
           if (!negociacion.estaFormalizada) const RoleSwitcherChip(),
           if (negociacion.estaFormalizada)
             IconButton(
-              icon: _exportandoPdf
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.picture_as_pdf_rounded),
-              tooltip: 'Guardar PDF',
-              onPressed: _exportandoPdf
-                  ? null
-                  : () => _guardarPdf(negociacion, rolActivo: rolActivo),
+              icon: const Icon(Icons.picture_as_pdf_rounded),
+              tooltip: 'Previsualizar PDF',
+              onPressed: () => _abrirPreviewPdf(
+                negociacion,
+                rolActivo: rolActivo,
+              ),
             ),
         ],
       ),
@@ -270,10 +280,24 @@ class _ActaAcuerdoScreenState extends State<ActaAcuerdoScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    SizedBox(
+                      height: 46,
+                      child: FilledButton.icon(
+                        onPressed: _exportandoPdf
+                            ? null
+                            : () => _abrirPreviewPdf(
+                                  negociacion,
+                                  rolActivo: rolActivo,
+                                ),
+                        icon: const Icon(Icons.visibility_outlined),
+                        label: const Text('Previsualizar PDF'),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
                     Row(
                       children: [
                         Expanded(
-                          child: FilledButton.icon(
+                          child: OutlinedButton.icon(
                             onPressed: _exportandoPdf
                                 ? null
                                 : () => _guardarPdf(
@@ -286,7 +310,6 @@ class _ActaAcuerdoScreenState extends State<ActaAcuerdoScreen> {
                                     height: 18,
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2,
-                                      color: Colors.white,
                                     ),
                                   )
                                 : const Icon(Icons.download_rounded),
@@ -310,9 +333,9 @@ class _ActaAcuerdoScreenState extends State<ActaAcuerdoScreen> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
                     SizedBox(
-                      height: 42,
+                      height: 40,
                       child: TextButton.icon(
                         onPressed: () {
                           Navigator.of(context)

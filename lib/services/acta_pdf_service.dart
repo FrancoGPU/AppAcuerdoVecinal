@@ -251,12 +251,25 @@ class ActaPdfService {
     return doc.save();
   }
 
+  /// Returns the sanitized PDF filename for a given agreement code.
+  static String nombreArchivoPdf(String? codigoActa) {
+    return '${_nombreArchivoSeguro(codigoActa)}.pdf';
+  }
+
   /// Generates the PDF and opens the native share chooser (or downloads on web).
   static Future<void> compartirActaPdf(
     NegociacionModel negociacion, {
     required String rolActivo,
   }) async {
     final bytes = await generarActaPdf(negociacion, rolActivo: rolActivo);
+    await compartirPdfGenerado(bytes, negociacion);
+  }
+
+  /// Shares already generated PDF bytes using the native chooser or Web download.
+  static Future<void> compartirPdfGenerado(
+    Uint8List bytes,
+    NegociacionModel negociacion,
+  ) async {
     final codigo = _nombreArchivoSeguro(negociacion.codigoActa);
     await compartirPdfBytes(
       bytes: bytes,
@@ -272,8 +285,28 @@ class ActaPdfService {
     required String rolActivo,
   }) async {
     final bytes = await generarActaPdf(negociacion, rolActivo: rolActivo);
-    final codigo = _nombreArchivoSeguro(negociacion.codigoActa);
-    return guardarPdfBytes(bytes: bytes, fileName: '$codigo.pdf');
+    return guardarPdfGenerado(bytes, negociacion.codigoActa);
+  }
+
+  /// Saves already generated PDF bytes directly into Downloads.
+  static Future<String> guardarPdfGenerado(
+    Uint8List bytes,
+    String? codigoActa,
+  ) async {
+    return guardarPdfBytes(
+      bytes: bytes,
+      fileName: nombreArchivoPdf(codigoActa),
+    );
+  }
+
+  /// Opens generated PDF bytes in a new browser tab on Web.
+  static void abrirPdfWebGenerado(Uint8List bytes, String? codigoActa) {
+    abrirPdfEnNuevaPestana(bytes, nombreArchivoPdf(codigoActa));
+  }
+
+  /// Renders PDF bytes to PNG pages on Android via native PdfRenderer.
+  static Future<List<Uint8List>?> renderizarPaginasNativas(Uint8List bytes) {
+    return renderizarPdfPaginasNativas(bytes);
   }
 
   static String _nombreArchivoSeguro(String? codigoActa) {

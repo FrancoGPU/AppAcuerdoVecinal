@@ -29,3 +29,19 @@ Future<String> guardarPdfBytes({
   );
   return ubicacion ?? 'Descargas/$fileName';
 }
+
+Future<List<Uint8List>?> renderizarPdfPaginasNativas(Uint8List bytes) async {
+  try {
+    final result = await _pdfChannel.invokeMethod<List<dynamic>>(
+      'renderizarPdfPaginas',
+      {'bytes': bytes},
+    );
+    if (result == null) return null;
+    final paginas = result.whereType<Uint8List>().toList();
+    return paginas.isEmpty ? null : paginas;
+  } catch (_) {
+    return null;
+  }
+}
+
+void abrirPdfEnNuevaPestana(Uint8List bytes, String fileName) {}

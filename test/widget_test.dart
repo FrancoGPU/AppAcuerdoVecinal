@@ -810,5 +810,47 @@ void main() {
       await service.inicializar(null);
       expect(service.estaListo, isFalse);
     });
+
+    testWidgets(
+        'ActaAcuerdoScreen abre Previsualizar PDF dentro de la app sin salir',
+        (tester) async {
+      final provider = NegociacionProvider();
+      await provider.inicializar();
+
+      await provider.registrarFirmaParticipante(
+        negociacionId: 'demo-caso-2',
+        firmaBase64: _samplePngBase64,
+      );
+      await provider.alternarRol();
+      await provider.registrarFirmaParticipante(
+        negociacionId: 'demo-caso-2',
+        firmaBase64: _samplePngBase64,
+      );
+
+      await tester.pumpWidget(AcuerdoVecinalApp(providerOverride: provider));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Formalizados (1)'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Uso del límite de cochera sótano 1'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Ver Acta / PDF'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Previsualizar PDF'), findsOneWidget);
+      await tester.tap(find.text('Previsualizar PDF'));
+      await tester.pump();
+      await _esperarHasta(
+        tester,
+        () => find.textContaining('KB').evaluate().isNotEmpty,
+      );
+
+      expect(find.text('Vista Previa PDF'), findsOneWidget);
+      expect(find.textContaining('ACTA-'), findsAtLeastNWidgets(1));
+      expect(
+        find.textContaining('Documento A4 verificable'),
+        findsOneWidget,
+      );
+    });
   });
 }
